@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quizlet Spaced Repetition - Premium Personal Edition</title>
+  <!-- Google Fonts: Inter & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            display: ['Outfit', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Dark Mode Core Theme */
+    body {
+      background-color: #0a092d; /* Quizlet background */
+      color: #f6f7fb;
+    }
+    .quizlet-card {
+      background-color: #2e3856; /* Quizlet dark container color */
+      border: 1px solid #3c4257;
+    }
+    .quizlet-btn-primary {
+      background-color: #4257b2; /* Quizlet primary blue */
+      color: #ffffff;
+    }
+    .quizlet-btn-primary:hover {
+      background-color: #3b4cb0;
+    }
+    
+    /* 3D Flip Card Effect */
+    .card-perspective {
+      perspective: 1200px;
+    }
+    .card-inner {
+      transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      transform-style: preserve-3d;
+    }
+    .card-flipped {
+      transform: rotateY(180deg);
+    }
+    .card-front, .card-back {
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+    .card-back {
+      transform: rotateY(180deg);
+    }
+
+    /* Inputs */
+    .quizlet-input {
+      background-color: #1a1b2f;
+      border: 1px solid #3c4257;
+      color: #ffffff;
+    }
+    .quizlet-input:focus {
+      border-color: #4257b2;
+      box-shadow: 0 0 0 2px rgba(66, 87, 178, 0.2);
+    }
+
+    /* Shake animation */
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-6px); }
+      40%, 80% { transform: translateX(6px); }
+    }
+    .animate-shake {
+      animation: shake 0.4s ease-in-out;
+    }
+    
+    /* Custom Scrollbar for sidebar */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0a092d;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #2e3856;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex font-sans selection:bg-[#4257b2]/40 selection:text-white">
+
+  <!-- LEFT SIDEBAR -->
+  <aside class="w-64 fixed top-0 bottom-0 left-0 bg-[#0c0b24] border-r border-[#2e3856] flex flex-col p-5 z-20 transition-all duration-300">
+    <!-- Logo -->
+    <div class="mb-8 flex items-center gap-2">
+      <span class="text-xl font-bold font-display text-white flex items-center gap-1.5">
+        <span class="text-yellow-400 text-lg">✨</span> Quizlet <span class="text-[10px] px-1.5 py-0.5 rounded bg-[#4257b2] font-semibold text-white uppercase">SRS</span>
+      </span>
+    </div>
+
+    <!-- Core Navigation Links -->
+    <div class="space-y-1 mb-8">
+      <button id="menu-home-btn" class="w-full text-left px-3 py-2 rounded-xl text-sm font-bold bg-[#2e3856] text-white flex items-center gap-3 transition-all">
+        <span>🏠</span> Trang chủ
+      </button>
+      <button id="menu-library-btn" class="w-full text-left px-3 py-2 rounded-xl text-sm font-bold text-[#939bb4] hover:text-white flex items-center gap-3 transition-all">
+        <span>📚</span> Thư viện của bạn
+      </button>
+      <div class="px-3 py-2 text-[10px] font-bold text-[#5c6479] uppercase tracking-widest mt-4">Lối tắt học tập</div>
+      <button id="shortcut-flashcards-btn" disabled class="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-[#5c6479] cursor-not-allowed flex items-center gap-3 transition-all study-shortcut">
+        <span>🎴</span> Thẻ ghi nhớ
+      </button>
+      <button id="shortcut-match-btn" disabled class="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-[#5c6479] cursor-not-allowed flex items-center gap-3 transition-all study-shortcut">
+        <span>🎮</span> Trò chơi Ghép thẻ
+      </button>
+      <button id="shortcut-test-btn" disabled class="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-[#5c6479] cursor-not-allowed flex items-center gap-3 transition-all study-shortcut">
+        <span>📝</span> Bài kiểm tra
+      </button>
+    </div>
+
+    <!-- Folders List Section -->
+    <div class="flex-grow flex flex-col overflow-hidden">
+      <div class="flex justify-between items-center px-3 mb-2">
+        <span class="text-[10px] font-bold text-[#939bb4] uppercase tracking-widest">Thư mục lớn</span>
+        <button id="add-folder-btn" class="text-xs text-sky-400 hover:text-white font-bold transition-colors" title="Tạo thư mục lớn mới">+ Mới</button>
+      </div>
+      
+      <!-- Dynamic list of folders -->
+      <div id="folders-sidebar-list" class="flex-grow overflow-y-auto space-y-1 pr-1 text-sm text-[#939bb4]">
+        <div class="px-3 py-2 text-xs italic text-[#5c6479]">Chưa có thư mục...</div>
+      </div>
+    </div>
+
+    <!-- Streak indicator at bottom -->
+    <div class="mt-auto border-t border-[#2e3856] pt-4 flex items-center gap-3">
+      <span class="text-2xl text-amber-400">🔥</span>
+      <div>
+        <div class="text-[10px] text-[#939bb4] font-bold uppercase tracking-wider">Streak học</div>
+        <div class="text-xs font-bold text-white"><span id="sidebar-streak" class="text-amber-400">0</span> ngày liên tục</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN AREA (ml-64 to make space for sidebar) -->
+  <main class="ml-64 flex-grow p-8 min-h-screen flex flex-col space-y-8 overflow-x-hidden">
+    
+    <!-- LocalStorage fallback warning -->
+    <div id="firebase-warning" class="hidden bg-amber-950/40 border border-amber-500/50 p-4 rounded-xl text-amber-200">
+      <div class="flex items-center gap-2 text-sm font-semibold mb-1">
+        <span>⚠️</span> Chế độ Demo (Lưu trữ cục bộ)
+      </div>
+      <p class="text-xs text-[#939bb4]">
+        Bạn đang chạy thử nghiệm bằng bộ nhớ trình duyệt. Thay thế thông tin kết nối Firestore thực tế trong <code class="bg-[#1a1b2f] px-1 py-0.5 rounded font-mono text-white">app.js</code> để liên kết đám mây.
+      </p>
+    </div>
+
+    <!-- SECTION 1: HOME VIEW / GENERAL DASHBOARD -->
+    <section id="view-home" class="space-y-6">
+      <div class="flex justify-between items-center">
+        <div>
+          <h2 class="text-2xl font-bold font-display text-white">Chào mừng bạn quay lại!</h2>
+          <p class="text-xs text-[#939bb4] mt-1">Hãy chọn một thư mục lớn ở thanh bên hoặc khởi tạo dữ liệu để bắt đầu.</p>
+        </div>
+        <button id="quick-seed-btn" class="px-4 py-2 quizlet-btn-primary font-bold text-xs rounded-xl transition-all uppercase tracking-wider">
+          ⚡ Nạp dữ liệu mẫu bóng đá
+        </button>
+      </div>
+
+      <!-- Quick stats summary card -->
+      <div class="quizlet-card p-6 rounded-2xl">
+        <h3 class="text-xs font-bold text-[#939bb4] uppercase tracking-widest mb-4">Thống kê học tập cá nhân</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="bg-[#1a1b2f] p-4 rounded-xl border border-[#3c4257]">
+            <span class="text-2xl">📁</span>
+            <div class="text-[10px] text-[#939bb4] font-bold uppercase tracking-wider mt-2">Tổng số Thư mục</div>
+            <div id="stat-folders" class="text-xl font-bold text-white mt-1">0</div>
+          </div>
+          <div class="bg-[#1a1b2f] p-4 rounded-xl border border-[#3c4257]">
+            <span class="text-2xl">📚</span>
+            <div class="text-[10px] text-[#939bb4] font-bold uppercase tracking-wider mt-2">Tổng số Học phần</div>
+            <div id="stat-sets" class="text-xl font-bold text-white mt-1">0</div>
+          </div>
+          <div class="bg-[#1a1b2f] p-4 rounded-xl border border-[#3c4257]">
+            <span class="text-2xl">🎴</span>
+            <div class="text-[10px] text-[#939bb4] font-bold uppercase tracking-wider mt-2">Tổng số Từ vựng</div>
+            <div id="stat-cards" class="text-xl font-bold text-white mt-1">0</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 2: FOLDER DETAIL VIEW (Giống Ảnh 1 của bạn) -->
+    <section id="view-folder" class="hidden space-y-6">
+      <!-- Folder Header -->
+      <div class="flex justify-between items-start">
+        <div class="flex items-center gap-4">
+          <span class="text-5xl p-3 bg-[#1a1b2f] rounded-2xl border border-[#3c4257]">📁</span>
+          <div>
+            <h2 id="folder-title" class="text-3xl font-extrabold font-display text-white">Tên Thư Mục</h2>
+            <div class="flex gap-4 mt-2 text-xs text-[#939bb4] font-semibold">
+              <span>Học phần: <strong id="folder-set-count" class="text-white">0</strong></span>
+              <span>•</span>
+              <span>Tác giả: <strong class="text-white">bạn</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex gap-2">
+          <button id="folder-delete-btn" class="px-3 py-2 bg-red-950/40 border border-red-500/40 hover:bg-red-950/80 text-red-400 font-bold text-xs rounded-xl transition-all uppercase tracking-wider">
+            🗑️ Xóa thư mục
+          </button>
+        </div>
+      </div>
+
+      <!-- Action Area for Folder sets -->
+      <div class="flex flex-col md:flex-row justify-between items-center gap-4 border-t border-[#2e3856] pt-6">
+        <div class="flex items-center gap-2 bg-[#1a1b2f] border border-[#3c4257] px-4 py-2 rounded-xl w-full md:w-80">
+          <span>🔍</span>
+          <input type="text" id="search-sets-input" placeholder="Tìm kiếm học phần trong thư mục này..." class="bg-transparent border-none outline-none text-xs text-white placeholder-[#939bb4] w-full">
+        </div>
+        
+        <!-- Controls like "+ Thêm học phần" -->
+        <div class="flex gap-3 w-full md:w-auto">
+          <button id="folder-study-all-btn" class="flex-grow md:flex-grow-0 px-6 py-2.5 bg-[#4257b2]/20 border border-[#4257b2]/40 hover:bg-[#4257b2]/40 text-white font-bold text-xs rounded-xl transition-all uppercase tracking-wider">
+            📖 Học toàn bộ từ vựng
+          </button>
+          <button id="add-set-to-folder-btn" class="flex-grow md:flex-grow-0 px-6 py-2.5 quizlet-btn-primary font-bold text-xs rounded-xl transition-all uppercase tracking-wider">
+            ➕ Thêm học phần con
+          </button>
+        </div>
+      </div>
+
+      <!-- List of study sets (Các mục con) -->
+      <div id="folder-sets-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Dynamic sets inside folder -->
+      </div>
+    </section>
+
+    <!-- SECTION 3: STUDY SET DETAIL VIEW (Dashboard Học phần: chứa Flashcard 3D) -->
+    <section id="view-set-detail" class="hidden space-y-6">
+      
+      <!-- Set Info Header -->
+      <div class="flex justify-between items-center">
+        <div>
+          <button id="back-to-folder-btn" class="text-xs text-[#939bb4] hover:text-white font-bold mb-2 flex items-center gap-1.5">
+            <span>◀</span> Trở về thư mục lớn
+          </button>
+          <h2 id="set-detail-title" class="text-2xl font-bold font-display text-white">Tiêu đề học phần</h2>
+          <p id="set-detail-desc" class="text-xs text-[#939bb4] mt-0.5">Mô tả học phần</p>
+        </div>
+        
+        <div class="flex gap-2">
+          <button id="set-edit-btn" class="px-4 py-2 bg-[#1a1b2f] border border-[#3c4257] hover:border-white text-white font-bold text-xs rounded-xl transition-all uppercase tracking-wider">
+            ✏️ Sửa học phần
+          </button>
+          <button id="set-delete-btn" class="px-4 py-2 bg-red-950/40 border border-red-500/40 hover:bg-red-950/80 text-red-400 font-bold text-xs rounded-xl transition-all uppercase tracking-wider">
+            🗑️ Xóa
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Access Mode Selection Panel -->
+      <div class="grid grid-cols-3 gap-3">
+        <button id="mode-flashcards-btn" class="quizlet-card p-4 rounded-xl flex flex-col items-center justify-center text-center hover:border-white transition-all font-bold text-xs uppercase tracking-wider">
+          <span class="text-2xl mb-1">🎴</span> Thẻ ghi nhớ
+        </button>
+        <button id="mode-match-btn" class="quizlet-card p-4 rounded-xl flex flex-col items-center justify-center text-center hover:border-white transition-all font-bold text-xs uppercase tracking-wider">
+          <span class="text-2xl mb-1">🎮</span> Ghép thẻ
+        </button>
+        <button id="mode-test-btn" class="quizlet-card p-4 rounded-xl flex flex-col items-center justify-center text-center hover:border-white transition-all font-bold text-xs uppercase tracking-wider">
+          <span class="text-2xl mb-1">📝</span> Kiểm tra
+        </button>
+      </div>
+
+      <!-- Sub-view 3.1: Flashcards Study Panel -->
+      <div id="subview-flashcards" class="space-y-6 pt-4">
+        <div class="flex justify-between items-center text-xs font-bold text-[#939bb4] px-1 uppercase tracking-wider">
+          <span id="fc-count-label">Thẻ 1 / 10</span>
+          <label class="flex items-center gap-1.5 cursor-pointer hover:text-white select-none">
+            <input type="checkbox" id="autoplay-speak" class="accent-[#4257b2]">
+            <span>🔊 Tự động phát âm</span>
+          </label>
+        </div>
+
+        <!-- Card Container -->
+        <div id="fc-perspective-box" class="w-full max-w-xl mx-auto card-perspective cursor-pointer">
+          <div id="fc-inner-box" class="card-inner quizlet-card rounded-2xl min-h-[300px] flex flex-col justify-between p-8 relative hover:border-[#4257b2] transition-colors duration-200 shadow-xl">
+            <!-- Front -->
+            <div class="card-front flex-grow flex flex-col justify-between items-center text-center">
+              <div class="w-full flex justify-between items-center">
+                <button id="fc-speak-front" class="p-2 bg-[#1a1b2f] hover:bg-[#4257b2] text-white rounded-xl transition-colors border border-[#3c4257]" title="Phát âm">🔊</button>
+                <button id="fc-hint" class="px-3 py-1.5 bg-[#1a1b2f] hover:bg-yellow-600/20 text-[#939bb4] hover:text-yellow-400 rounded-xl transition-colors text-[10px] font-bold uppercase tracking-wider border border-[#3c4257]" title="Gợi ý">💡 Gợi ý</button>
+              </div>
+              <div class="my-auto py-4">
+                <h2 id="fc-word-text" class="text-4xl font-extrabold text-white tracking-tight font-display select-none">English Word</h2>
+                <p id="fc-hint-text" class="hidden text-xs text-yellow-300 bg-yellow-950/40 border border-yellow-500/30 mt-4 px-3 py-1.5 rounded-lg max-w-xs animate-fade-in font-semibold"></p>
+              </div>
+              <div class="text-[10px] text-[#939bb4] font-bold uppercase tracking-wider">Lật thẻ</div>
+            </div>
+            <!-- Back -->
+            <div class="card-back absolute inset-0 p-8 flex flex-col justify-between bg-[#1f263f] rounded-2xl">
+              <div class="w-full flex justify-between items-center">
+                <button id="fc-speak-back" class="p-2 bg-[#1a1b2f] hover:bg-[#4257b2] text-white rounded-xl transition-colors border border-[#3c4257]" title="Phát âm">🔊</button>
+                <span class="text-[9px] uppercase font-bold text-[#939bb4] tracking-widest bg-[#1a1b2f] px-2 py-1 rounded border border-[#3c4257]">Đáp án</span>
+              </div>
+              <div class="my-auto py-2">
+                <h3 id="fc-meaning-text" class="text-2xl font-bold text-white font-display leading-relaxed select-none">Vietnamese Meaning</h3>
+              </div>
+              <div class="w-full flex justify-center gap-3 text-[9px] text-[#939bb4] bg-[#1a1b2f] py-2 px-3 rounded-xl border border-[#3c4257] font-semibold uppercase tracking-wider">
+                <span>EF: <strong id="fc-ef-val" class="text-white">2.5</strong></span>
+                <span>•</span>
+                <span>Lặp lại: <strong id="fc-rep-val" class="text-white">0</strong></span>
+                <span>•</span>
+                <span>Giãn cách: <strong id="fc-interval-val" class="text-white">0</strong> ngày</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Navigation Buttons -->
+        <div class="w-full max-w-xl mx-auto flex justify-between items-center gap-4 px-1">
+          <div class="flex gap-2">
+            <button id="fc-prev-btn" class="px-4 py-2 bg-[#1a1b2f] border border-[#3c4257] text-[#939bb4] hover:text-white hover:border-white rounded-xl transition-all font-bold text-xs uppercase tracking-wider">◀️</button>
+            <button id="fc-next-btn" class="px-4 py-2 bg-[#1a1b2f] border border-[#3c4257] text-[#939bb4] hover:text-white hover:border-white rounded-xl transition-all font-bold text-xs uppercase tracking-wider">▶️</button>
+          </div>
+          <div class="flex gap-2">
+            <button id="fc-shuffle-btn" class="px-3 py-2 bg-[#1a1b2f] border border-[#3c4257] text-[#939bb4] hover:text-white hover:border-white rounded-xl transition-all font-bold text-xs uppercase tracking-wider">🔀 Trộn</button>
+            <button id="fc-autoplay-btn" class="px-3 py-2 bg-[#1a1b2f] border border-[#3c4257] text-[#939bb4] hover:text-white hover:border-white rounded-xl transition-all font-bold text-xs uppercase tracking-wider flex items-center gap-1"><span>▶️</span> Chạy</button>
+          </div>
+        </div>
+
+        <!-- Rating evaluation -->
+        <div id="fc-rate-box" class="w-full max-w-xl mx-auto hidden">
+          <div class="text-center text-[10px] font-bold text-[#939bb4] mb-3 uppercase tracking-widest">Độ thuộc của bạn thế nào?</div>
+          <div class="grid grid-cols-4 gap-2.5">
+            <button data-q="0" class="rate-btn flex flex-col items-center p-3 bg-red-950/30 hover:bg-red-950/60 border border-red-500/40 text-red-400 rounded-xl transition-all font-bold">
+              <span class="text-lg">❌</span>
+              <span class="text-[10px] mt-1 uppercase tracking-wider">Quên</span>
+            </button>
+            <button data-q="3" class="rate-btn flex flex-col items-center p-3 bg-amber-950/30 hover:bg-amber-950/60 border border-amber-500/40 text-amber-400 rounded-xl transition-all font-bold">
+              <span class="text-lg">🤔</span>
+              <span class="text-[10px] mt-1 uppercase tracking-wider">Khó</span>
+            </button>
+            <button data-q="4" class="rate-btn flex flex-col items-center p-3 bg-blue-950/30 hover:bg-blue-950/60 border border-blue-500/40 text-blue-400 rounded-xl transition-all font-bold">
+              <span class="text-lg">😊</span>
+              <span class="text-[10px] mt-1 uppercase tracking-wider">Tốt</span>
+            </button>
+            <button data-q="5" class="rate-btn flex flex-col items-center p-3 bg-emerald-950/30 hover:bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 rounded-xl transition-all font-bold">
+              <span class="text-lg">🔥</span>
+              <span class="text-[10px] mt-1 uppercase tracking-wider">Dễ</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Term Listing underneath flashcards -->
+        <div class="quizlet-card p-6 rounded-2xl mt-10">
+          <h3 class="text-sm font-bold text-white mb-4 uppercase tracking-widest font-display">Từ vựng trong học phần này</h3>
+          <div class="divide-y divide-[#3c4257] space-y-4">
+            <div id="set-terms-list" class="space-y-4 pt-4">
+              <!-- Term rows: Front | Back -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sub-view 3.2: Match Game Panel -->
+      <div id="subview-match" class="hidden space-y-6 pt-4">
+        <div class="flex justify-center gap-4 text-xs font-bold uppercase tracking-wider bg-[#1a1b2f] p-4 rounded-xl border border-[#3c4257] max-w-md mx-auto">
+          <div>⏱️ Thời gian: <span id="m-timer" class="font-bold text-white text-sm pl-1">0.0</span>s</div>
+          <div class="text-[#3c4257]">|</div>
+          <div class="text-yellow-400">🏆 Kỷ lục: <span id="m-highscore" class="font-bold text-yellow-400 text-sm pl-1">0.0</span>s</div>
+        </div>
+
+        <!-- Match Start screen -->
+        <div id="m-start-screen" class="quizlet-card rounded-2xl p-8 text-center max-w-md mx-auto shadow-xl flex flex-col items-center">
+          <span class="text-4xl mb-3">🔀</span>
+          <h3 class="text-md font-bold text-white mb-2 uppercase tracking-widest font-display">Bắt đầu ghép thẻ</h3>
+          <p class="text-xs text-[#939bb4] leading-relaxed mb-6">Ghép thuật ngữ và định nghĩa tương thích nhanh nhất có thể.</p>
+          <button id="m-start-btn" class="px-6 py-2.5 quizlet-btn-primary font-bold rounded-xl text-xs uppercase tracking-wider">Bắt đầu</button>
+        </div>
+
+        <!-- Grid Arena -->
+        <div id="m-arena" class="hidden grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-xl mx-auto">
+          <!-- Scattered Cards -->
+        </div>
+
+        <!-- Match Finished Screen -->
+        <div id="m-finish-screen" class="hidden bg-emerald-950/20 border border-emerald-500/30 rounded-2xl p-8 text-center max-w-md mx-auto shadow-xl flex flex-col items-center">
+          <span class="text-4xl mb-3 block">🏆</span>
+          <h3 class="text-lg font-bold text-emerald-400 mb-2 uppercase tracking-widest font-display">Hoàn thành!</h3>
+          <p class="text-xs text-[#939bb4] mb-6">Bạn hoàn thành trò chơi trong <strong id="m-result-time" class="text-emerald-400 text-base font-display">0.0</strong> giây.</p>
+          <button id="m-replay-btn" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs uppercase tracking-wider">Chơi lại</button>
+        </div>
+      </div>
+
+      <!-- Sub-view 3.3: Test Mode Panel -->
+      <div id="subview-test" class="hidden space-y-6 pt-4 max-w-xl mx-auto">
+        <div id="t-start-panel" class="text-center quizlet-card p-6 rounded-2xl">
+          <span class="text-4xl block mb-2">📝</span>
+          <h3 class="text-md font-bold text-white mb-2 uppercase tracking-widest font-display">Bài trắc nghiệm</h3>
+          <p class="text-xs text-[#939bb4] mb-4 leading-relaxed">Đề thi 5 câu hỏi trắc nghiệm tự động xây dựng từ học phần.</p>
+          <button id="t-generate-btn" class="px-6 py-2.5 quizlet-btn-primary font-bold rounded-xl text-xs uppercase tracking-wider">Bắt đầu thi</button>
+        </div>
+
+        <!-- Test Form -->
+        <div id="t-paper" class="hidden space-y-6">
+          <form id="t-form" class="space-y-6">
+            <!-- Dynamic questions -->
+          </form>
+          <button id="t-submit-btn" class="w-full py-3 quizlet-btn-primary font-bold rounded-xl text-xs uppercase tracking-wider">Nộp bài chấm điểm</button>
+        </div>
+
+        <!-- Result Screen -->
+        <div id="t-result-panel" class="hidden quizlet-card p-8 rounded-2xl text-center shadow-xl">
+          <span id="t-emoji" class="text-5xl mb-3 block">🎯</span>
+          <h3 class="text-lg font-bold text-white mb-1 uppercase tracking-widest font-display">Kết quả thi</h3>
+          <div class="text-4xl font-extrabold text-white font-display mb-4"><span id="t-score-correct" class="text-sky-400">0</span> / <span id="t-score-total">5</span></div>
+          <p id="t-feedback" class="text-xs text-[#939bb4] leading-relaxed mb-6 italic"></p>
+          <button id="t-restart-btn" class="w-full py-2.5 bg-[#1a1b2f] border border-[#3c4257] hover:border-white text-white text-xs font-bold rounded-xl uppercase tracking-wider">Làm đề thi khác</button>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- SECTION 4: CREATE/EDIT STUDY SET VIEW (Giống Ảnh 2 của bạn) -->
+    <section id="view-edit-set" class="hidden space-y-6">
+      
+      <!-- Top Action bar -->
+      <div class="flex justify-between items-center border-b border-[#2e3856] pb-4">
+        <div>
+          <h2 id="edit-view-title" class="text-2xl font-bold font-display text-white">Tạo học phần mới</h2>
+          <p class="text-xs text-[#939bb4] mt-0.5">Thêm các thẻ từ vựng của bạn để bắt đầu học tập.</p>
+        </div>
+        <!-- Done / Hoàn tất button at top-right -->
+        <button id="edit-set-done-btn" class="px-6 py-2.5 quizlet-btn-primary font-bold text-xs rounded-xl transition-all uppercase tracking-wider">
+          Hoàn tất
+        </button>
+      </div>
+
+      <!-- Set Title & Description Inputs -->
+      <div class="quizlet-card p-6 rounded-2xl space-y-4">
+        <div>
+          <label for="set-title-input" class="block text-[10px] font-bold text-[#939bb4] uppercase tracking-wider mb-2">Tiêu đề học phần</label>
+          <input type="text" id="set-title-input" placeholder="Nhập tiêu đề (Ví dụ: Leg - Chân)" class="w-full px-4 py-3 rounded-xl outline-none text-sm transition-all quizlet-input font-bold">
+        </div>
+        <div>
+          <label for="set-desc-input" class="block text-[10px] font-bold text-[#939bb4] uppercase tracking-wider mb-2">Mô tả học phần (Không bắt buộc)</label>
+          <input type="text" id="set-desc-input" placeholder="Thêm mô tả..." class="w-full px-4 py-3 rounded-xl outline-none text-sm transition-all quizlet-input">
+        </div>
+      </div>
+
+      <!-- Card rows container -->
+      <div class="space-y-4">
+        <h3 class="text-xs font-bold text-[#939bb4] uppercase tracking-widest px-1">Danh sách từ vựng</h3>
+        
+        <!-- Cards dynamic rows list -->
+        <div id="edit-cards-rows-list" class="space-y-4">
+          <!-- Dynamic Row Items -->
+        </div>
+
+        <!-- Add Card Row Button -->
+        <button id="edit-add-row-btn" class="w-full py-4 bg-[#1a1b3a] border-2 border-dashed border-[#2e3856] hover:border-white text-[#939bb4] hover:text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-colors">
+          ➕ Thêm thẻ mới
+        </button>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Script Module -->
+  <script type="module" src="app.js"></script>
+</body>
+</html>
