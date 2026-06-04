@@ -5,12 +5,13 @@ import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, q
 // CẤU HÌNH FIREBASE
 // ==========================================
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY_HERE",
-  authDomain: "YOUR_AUTH_DOMAIN_HERE",
-  projectId: "YOUR_PROJECT_ID_HERE",
-  storageBucket: "YOUR_STORAGE_BUCKET_HERE",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID_HERE",
-  appId: "YOUR_APP_ID_HERE"
+  apiKey: "AIzaSyDoFZnLUGgRnAU52nqiMK2mVthcTJs6DS0",
+  authDomain: "quizlet-srs.firebaseapp.com",
+  projectId: "quizlet-srs",
+  storageBucket: "quizlet-srs.firebasestorage.app",
+  messagingSenderId: "698675276100",
+  appId: "1:698675276100:web:fda06debca0135515e8f11",
+  measurementId: "G-4MD5Z93QTR"
 };
 
 // ==========================================
@@ -892,6 +893,16 @@ document.addEventListener('keydown', (e) => {
         document.getElementById('fc-next-btn').click();
       } else if (e.code === 'ArrowLeft') {
         document.getElementById('fc-prev-btn').click();
+      } else if (fcIsFlipped) {
+        if (e.key === '1') {
+          document.querySelector('button[data-q="0"]')?.click();
+        } else if (e.key === '2') {
+          document.querySelector('button[data-q="3"]')?.click();
+        } else if (e.key === '3') {
+          document.querySelector('button[data-q="4"]')?.click();
+        } else if (e.key === '4') {
+          document.querySelector('button[data-q="5"]')?.click();
+        }
       }
     }
   }
