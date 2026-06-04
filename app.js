@@ -66,6 +66,11 @@ function getReviewDate(next_review) {
 // DỊCH VỤ DỮ LIỆU (DATABASE SERVICE API)
 // ==========================================
 
+function handleDbError(error, contextName = "") {
+  console.error(`Firebase Error during ${contextName}:`, error);
+  alert(`Lỗi thao tác Database (${contextName}):\n${error.message}\n\nNguyên nhân phổ biến:\n1. Bạn chưa kích hoạt 'Firestore Database' trong Firebase Console.\n2. Quy tắc bảo mật (Rules) chưa được đặt ở chế độ công khai (Test Mode).\n3. Lỗi kết nối mạng.`);
+}
+
 // --- THƯ MỤC LỚN (FOLDERS) ---
 async function getFolders() {
   if (isDemoMode) {
@@ -93,9 +98,14 @@ async function createFolder(name) {
     saveLocalStorage(FOLDERS_KEY, list);
     return newFolder;
   } else {
-    const docRef = await addDoc(collection(db, "folders"), newFolder);
-    newFolder.id = docRef.id;
-    return newFolder;
+    try {
+      const docRef = await addDoc(collection(db, "folders"), newFolder);
+      newFolder.id = docRef.id;
+      return newFolder;
+    } catch (e) {
+      handleDbError(e, "Tạo Thư mục");
+      throw e;
+    }
   }
 }
 
@@ -117,23 +127,28 @@ async function deleteFolder(folderId) {
     cards = cards.filter(c => !setToDeleteIds.includes(c.set_id));
     saveLocalStorage(CARDS_KEY, cards);
   } else {
-    // Xóa thư mục trên Firestore
-    await deleteDoc(doc(db, "folders", folderId));
-    
-    // Tìm các học phần để xóa
-    const setsQuery = query(collection(db, "study_sets"), where("folder_id", "==", folderId));
-    const setsSnapshot = await getDocs(setsQuery);
-    
-    for (const setDoc of setsSnapshot.docs) {
-      const setId = setDoc.id;
-      // Xóa thẻ của học phần đó
-      const cardsQuery = query(collection(db, "cards"), where("set_id", "==", setId));
-      const cardsSnapshot = await getDocs(cardsQuery);
-      for (const cardDoc of cardsSnapshot.docs) {
-        await deleteDoc(doc(db, "cards", cardDoc.id));
+    try {
+      // Xóa thư mục trên Firestore
+      await deleteDoc(doc(db, "folders", folderId));
+      
+      // Tìm các học phần để xóa
+      const setsQuery = query(collection(db, "study_sets"), where("folder_id", "==", folderId));
+      const setsSnapshot = await getDocs(setsQuery);
+      
+      for (const setDoc of setsSnapshot.docs) {
+        const setId = setDoc.id;
+        // Xóa thẻ của học phần đó
+        const cardsQuery = query(collection(db, "cards"), where("set_id", "==", setId));
+        const cardsSnapshot = await getDocs(cardsQuery);
+        for (const cardDoc of cardsSnapshot.docs) {
+          await deleteDoc(doc(db, "cards", cardDoc.id));
+        }
+        // Xóa học phần
+        await deleteDoc(doc(db, "study_sets", setId));
       }
-      // Xóa học phần
-      await deleteDoc(doc(db, "study_sets", setId));
+    } catch (e) {
+      handleDbError(e, "Xóa Thư mục");
+      throw e;
     }
   }
 }
@@ -193,15 +208,20 @@ async function createOrUpdateStudySet(setId, folderId, title, description) {
     saveLocalStorage(SETS_KEY, list);
     return setObj;
   } else {
-    if (setId) {
-      const docRef = doc(db, "study_sets", setId);
-      await updateDoc(docRef, setObj);
-      setObj.id = setId;
-      return setObj;
-    } else {
-      const docRef = await addDoc(collection(db, "study_sets"), setObj);
-      setObj.id = docRef.id;
-      return setObj;
+    try {
+      if (setId) {
+        const docRef = doc(db, "study_sets", setId);
+        await updateDoc(docRef, setObj);
+        setObj.id = setId;
+        return setObj;
+      } else {
+        const docRef = await addDoc(collection(db, "study_sets"), setObj);
+        setObj.id = docRef.id;
+        return setObj;
+      }
+    } catch (e) {
+      handleDbError(e, "Lưu Học phần");
+      throw e;
     }
   }
 }
@@ -216,12 +236,17 @@ async function deleteStudySet(setId) {
     cards = cards.filter(c => c.set_id !== setId);
     saveLocalStorage(CARDS_KEY, cards);
   } else {
-    await deleteDoc(doc(db, "study_sets", setId));
-    // Xóa tất cả các thẻ trong học phần này
-    const q = query(collection(db, "cards"), where("set_id", "==", setId));
-    const snapshot = await getDocs(q);
-    for (const cardDoc of snapshot.docs) {
-      await deleteDoc(doc(db, "cards", cardDoc.id));
+    try {
+      await deleteDoc(doc(db, "study_sets", setId));
+      // Xóa tất cả các thẻ trong học phần này
+      const q = query(collection(db, "cards"), where("set_id", "==", setId));
+      const snapshot = await getDocs(q);
+      for (const cardDoc of snapshot.docs) {
+        await deleteDoc(doc(db, "cards", cardDoc.id));
+      }
+    } catch (e) {
+      handleDbError(e, "Xóa Học phần");
+      throw e;
     }
   }
 }
@@ -270,36 +295,41 @@ async function saveSetCards(setId, cardsList) {
     
     saveLocalStorage(CARDS_KEY, allCards);
   } else {
-    // Lấy các card hiện có trên Firestore để đồng bộ hóa (giữ thông số SRS)
-    const existingCards = await getCardsOfSet(setId);
-    
-    for (const card of cardsList) {
-      const cardObj = {
-        set_id: setId,
-        front_word: card.front_word.trim(),
-        back_meaning: card.back_meaning.trim(),
-        hint: card.hint.trim(),
-        interval: card.interval || 0,
-        repetition: card.repetition || 0,
-        ease_factor: card.ease_factor || 2.5,
-        next_review: card.next_review ? new Date(card.next_review) : new Date()
-      };
+    try {
+      // Lấy các card hiện có trên Firestore để đồng bộ hóa (giữ thông số SRS)
+      const existingCards = await getCardsOfSet(setId);
+      
+      for (const card of cardsList) {
+        const cardObj = {
+          set_id: setId,
+          front_word: card.front_word.trim(),
+          back_meaning: card.back_meaning.trim(),
+          hint: card.hint.trim(),
+          interval: card.interval || 0,
+          repetition: card.repetition || 0,
+          ease_factor: card.ease_factor || 2.5,
+          next_review: card.next_review ? new Date(card.next_review) : new Date()
+        };
 
-      if (card.id && existingCards.some(ec => ec.id === card.id)) {
-        // Cập nhật card hiện tại
-        const docRef = doc(db, "cards", card.id);
-        await updateDoc(docRef, cardObj);
-      } else {
-        // Thêm card mới tinh
-        await addDoc(collection(db, "cards"), cardObj);
+        if (card.id && existingCards.some(ec => ec.id === card.id)) {
+          // Cập nhật card hiện tại
+          const docRef = doc(db, "cards", card.id);
+          await updateDoc(docRef, cardObj);
+        } else {
+          // Thêm card mới tinh
+          await addDoc(collection(db, "cards"), cardObj);
+        }
       }
-    }
 
-    // Xóa các card đã bị người dùng xóa khỏi UI
-    const keptIds = cardsList.map(c => c.id).filter(id => id);
-    const toDelete = existingCards.filter(ec => !keptIds.includes(ec.id));
-    for (const ec of toDelete) {
-      await deleteDoc(doc(db, "cards", ec.id));
+      // Xóa các card đã bị người dùng xóa khỏi UI
+      const keptIds = cardsList.map(c => c.id).filter(id => id);
+      const toDelete = existingCards.filter(ec => !keptIds.includes(ec.id));
+      for (const ec of toDelete) {
+        await deleteDoc(doc(db, "cards", ec.id));
+      }
+    } catch (e) {
+      handleDbError(e, "Lưu danh sách thẻ");
+      throw e;
     }
   }
 }
@@ -313,13 +343,18 @@ async function updateCardSRS(cardId, updatedFields) {
       saveLocalStorage(CARDS_KEY, cards);
     }
   } else {
-    const docRef = doc(db, "cards", cardId);
-    // Chuẩn hóa next_review thành Date cho Firestore
-    const fieldsToSave = { ...updatedFields };
-    if (updatedFields.next_review) {
-      fieldsToSave.next_review = new Date(updatedFields.next_review);
+    try {
+      const docRef = doc(db, "cards", cardId);
+      // Chuẩn hóa next_review thành Date cho Firestore
+      const fieldsToSave = { ...updatedFields };
+      if (updatedFields.next_review) {
+        fieldsToSave.next_review = new Date(updatedFields.next_review);
+      }
+      await updateDoc(docRef, fieldsToSave);
+    } catch (e) {
+      handleDbError(e, "Cập nhật chỉ số SRS thẻ");
+      throw e;
     }
-    await updateDoc(docRef, fieldsToSave);
   }
 }
 
