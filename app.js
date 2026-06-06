@@ -3968,111 +3968,143 @@ window.searchImagesForModal = async function(definitionContext) {
   resultsContainer.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Đang tải ảnh gợi ý...</div>';
 
   try {
-    let allImages = [];
     const kwLower = keyword.toLowerCase();
     const searchTerms = getSmartSearchTerms(keyword, definitionContext);
 
-    // === Step 0: Translate Vietnamese definition back to English for better search context ===
-    let englishMeaning = '';
-    if (definitionContext) {
-      try {
-        const transRes = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=vi&tl=en&dt=t&q=${encodeURIComponent(definitionContext)}`);
-        if (transRes.ok) {
-          const transData = await transRes.json();
-          englishMeaning = (transData[0][0][0] || '').toLowerCase().trim();
-          // Add the English meaning words as additional search terms
-          if (englishMeaning && englishMeaning !== kwLower) {
-            searchTerms.push(englishMeaning);
-          }
+    // === PHASE 1: Translation + initial Wikipedia/Commons searches ALL IN PARALLEL ===
+    const isImageFile = (url) => {
+      const lower = url.toLowerCase();
+      return lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.png') || lower.endsWith('.webp');
+    };
+    const isJunkTitle = (title) => {
+      const lower = title.toLowerCase();
+      return lower.endsWith('.svg') || lower.includes('icon') || lower.includes('logo') || 
+          lower.includes('flag') || lower.includes('edit-') || lower.includes('commons-') ||
+          lower.includes('wikidata') || lower.includes('disambig') || lower.includes('question_book') ||
+          lower.includes('ambox') || lower.includes('symbol') || lower.includes('wiki') ||
+          lower.includes('padlock') || lower.includes('crystal') || lower.includes('nuvola') ||
+          lower.includes('folder') || lower.includes('increase') || lower.includes('decrease') ||
+          lower.includes('template') || lower.includes('stub') || lower.includes('map') ||
+          lower.includes('diagram') || lower.includes('chart') || lower.includes('button') || lower.includes('arrow');
+    };
+
+    // Helper: fetch Wikipedia article images for a term (returns image file names)
+    const fetchWikiArticleImages = async (term) => {
+      const res = await fetch(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(term)}&prop=images&imlimit=15&format=json&origin=*`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      const pages = data.query?.pages || {};
+      const names = [];
+      Object.values(pages).forEach(p => {
+        if (p.missing !== undefined) return;
+        (p.images || []).forEach(img => {
+          if (!isJunkTitle(img.title || '')) names.push(img.title);
+        });
+      });
+      return names;
+    };
+
+    // Helper: resolve image names to thumbnail URLs (batch)
+    const resolveImageUrls = async (imageNames, searchTerm) => {
+      if (!imageNames.length) return [];
+      const titlesParam = imageNames.slice(0, 15).map(t => encodeURIComponent(t)).join('|');
+      const res = await fetch(`https://en.wikipedia.org/w/api.php?action=query&titles=${titlesParam}&prop=imageinfo&iiprop=url&iiurlwidth=400&format=json&origin=*`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      const results = [];
+      Object.values(data.query?.pages || {}).forEach(p => {
+        const info = p.imageinfo?.[0];
+        const url = info?.thumburl || info?.url || '';
+        if (url && isImageFile(url)) {
+          results.push({ url, source: 'wikipedia', title: p.title || '', searchTerm });
         }
-      } catch(e) { console.warn('Translation for image context failed:', e); }
+      });
+      return results;
+    };
+
+    // Helper: fetch Wikimedia Commons images for a term
+    const fetchCommonsImages = async (term) => {
+      const res = await fetch(`https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(term)}+filetype:bitmap&gsrnamespace=6&prop=imageinfo&iiprop=url&iiurlwidth=400&format=json&origin=*&gsrlimit=15`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      const results = [];
+      Object.values(data.query?.pages || {}).forEach(p => {
+        const info = p.imageinfo?.[0];
+        const url = info?.thumburl || info?.url || '';
+        const title = p.title || '';
+        if (url && isImageFile(url) && !isJunkTitle(title)) {
+          results.push({ url, source: 'commons', title, searchTerm: term });
+        }
+      });
+      return results;
+    };
+
+    // Fire ALL requests in parallel:
+    // 1. Translation (if needed)
+    // 2. Wikipedia searches for all lemma forms
+    // 3. Commons searches for all lemma forms
+    const parallelTasks = [];
+    
+    // Task: Translate definition
+    let translationPromise = null;
+    if (definitionContext) {
+      translationPromise = fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=vi&tl=en&dt=t&q=${encodeURIComponent(definitionContext)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => d ? (d[0][0][0] || '').toLowerCase().trim() : '')
+        .catch(() => '');
     }
 
-    // Determine the best Wikipedia search term
-    // Use the English meaning from definition if available (e.g. "freckled" + def "tàn nhang" → search "freckle")
-    // The primary search should be the noun/base form of the concept
+    // Task: Wikipedia article images for each search term (parallel)
+    const wikiTermsPhase1 = [...new Set(searchTerms)].slice(0, 2);
+    const wikiNamePromises = wikiTermsPhase1.map(term => 
+      fetchWikiArticleImages(term).catch(() => [])
+    );
+
+    // Task: Commons images for keyword (parallel)
+    const commonsPromise = fetchCommonsImages(kwLower).catch(() => []);
+
+    // Wait for Phase 1: translation + wiki names + commons
+    const [englishMeaning, ...wikiNameResults] = await Promise.all([
+      translationPromise || Promise.resolve(''),
+      ...wikiNamePromises
+    ]);
+    const commonsResults = await commonsPromise;
+
+    // Add english meaning as additional search term
+    if (englishMeaning && englishMeaning !== kwLower) {
+      searchTerms.push(englishMeaning);
+    }
     const primaryWikiTerm = englishMeaning || searchTerms.find(t => t !== kwLower) || kwLower;
 
-    // === Source 1: Wikipedia article images with smart term ===
-    const wikiTermsToTry = [...new Set([primaryWikiTerm, ...searchTerms])].slice(0, 3);
-    for (const wikiTerm of wikiTermsToTry) {
-      try {
-        const wikiArticleUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(wikiTerm)}&prop=images&imlimit=15&format=json&origin=*`;
-        const artRes = await fetch(wikiArticleUrl);
-        if (artRes.ok) {
-          const artData = await artRes.json();
-          const pages = artData.query?.pages || {};
-          const imageNames = [];
-          Object.values(pages).forEach(p => {
-            // Skip if page is a redirect miss (-1 id)
-            if (p.missing !== undefined) return;
-            if (p.images) {
-              p.images.forEach(img => {
-                const title = img.title || '';
-                const lower = title.toLowerCase();
-                // Filter out icons, logos, commons-logo, wiki assets, SVGs
-                if (lower.endsWith('.svg') || lower.includes('icon') || lower.includes('logo') || 
-                    lower.includes('flag') || lower.includes('edit-') || lower.includes('commons-') ||
-                    lower.includes('wikidata') || lower.includes('disambig') || lower.includes('question_book') ||
-                    lower.includes('ambox') || lower.includes('symbol') || lower.includes('wiki') ||
-                    lower.includes('padlock') || lower.includes('crystal') || lower.includes('nuvola') ||
-                    lower.includes('folder') || lower.includes('increase') || lower.includes('decrease') ||
-                    lower.includes('template') || lower.includes('stub')) return;
-                imageNames.push(title);
-              });
-            }
-          });
+    // === PHASE 2: Resolve Wikipedia image URLs + extra searches (ALL PARALLEL) ===
+    const phase2Tasks = [];
 
-          // Fetch actual URLs for these images
-          if (imageNames.length > 0) {
-            const batchSize = 10;
-            for (let i = 0; i < Math.min(imageNames.length, 15); i += batchSize) {
-              const batch = imageNames.slice(i, i + batchSize);
-              const titlesParam = batch.map(t => encodeURIComponent(t)).join('|');
-              const imgInfoUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${titlesParam}&prop=imageinfo&iiprop=url&iiurlwidth=500&format=json&origin=*`;
-              const infoRes = await fetch(imgInfoUrl);
-              if (infoRes.ok) {
-                const infoData = await infoRes.json();
-                const infoPages = infoData.query?.pages || {};
-                Object.values(infoPages).forEach(p => {
-                  const info = p.imageinfo?.[0];
-                  const url = info?.thumburl || info?.url || '';
-                  if (url && (url.toLowerCase().endsWith('.jpg') || url.toLowerCase().endsWith('.jpeg') || url.toLowerCase().endsWith('.png') || url.toLowerCase().endsWith('.webp'))) {
-                    allImages.push({ url, source: 'wikipedia', title: p.title || '', searchTerm: wikiTerm });
-                  }
-                });
-              }
-            }
-          }
-        }
-      } catch(e) { console.warn(`Wikipedia images failed for "${wikiTerm}":`, e); }
+    // Resolve URLs for wiki image names from Phase 1
+    wikiTermsPhase1.forEach((term, idx) => {
+      const names = wikiNameResults[idx] || [];
+      if (names.length) phase2Tasks.push(resolveImageUrls(names, term).catch(() => []));
+    });
+
+    // If we got a translated meaning different from original, search Wiki + Commons for it too
+    if (englishMeaning && englishMeaning !== kwLower && !wikiTermsPhase1.includes(englishMeaning)) {
+      phase2Tasks.push(
+        fetchWikiArticleImages(englishMeaning)
+          .then(names => names.length ? resolveImageUrls(names, englishMeaning) : [])
+          .catch(() => [])
+      );
+      phase2Tasks.push(fetchCommonsImages(englishMeaning).catch(() => []));
     }
 
-    // === Source 2: Wikimedia Commons search with multiple terms ===
-    const commonsSearchTerms = [...new Set([primaryWikiTerm, kwLower])].slice(0, 2);
-    for (const commTerm of commonsSearchTerms) {
-      try {
-        const commonsUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(commTerm)}+filetype:bitmap&gsrnamespace=6&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=500&format=json&origin=*&gsrlimit=20`;
-        const commonsRes = await fetch(commonsUrl);
-        if (commonsRes.ok) {
-          const commonsData = await commonsRes.json();
-          const commonsPages = commonsData.query?.pages || {};
-          Object.values(commonsPages).forEach(p => {
-            const info = p.imageinfo?.[0];
-            const url = info?.thumburl || info?.url || '';
-            const title = p.title || '';
-            const lower = url.toLowerCase();
-            if (!url || !(lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.png') || lower.endsWith('.webp'))) return;
-            // Filter out icons, logos, flags, and other non-photo content
-            const titleLower = title.toLowerCase();
-            if (titleLower.includes('icon') || titleLower.includes('logo') || titleLower.includes('flag') ||
-                titleLower.includes('map') || titleLower.includes('diagram') || titleLower.includes('chart') ||
-                titleLower.includes('symbol') || titleLower.includes('button') || titleLower.includes('arrow')) return;
-            allImages.push({ url, source: 'commons', title, searchTerm: commTerm });
-          });
-        }
-      } catch(e) { console.warn(`Wikimedia Commons failed for "${commTerm}":`, e); }
-    }
+    // Wait for Phase 2
+    const phase2Results = await Promise.allSettled(phase2Tasks);
+
+    // === Collect all images ===
+    let allImages = [...commonsResults];
+    phase2Results.forEach(r => {
+      if (r.status === 'fulfilled' && Array.isArray(r.value)) {
+        allImages.push(...r.value);
+      }
+    });
 
     // === Deduplicate by URL ===
     const seen = new Set();
@@ -4083,40 +4115,29 @@ window.searchImagesForModal = async function(definitionContext) {
     });
 
     // === Score and sort by relevance ===
-    // Prioritize images that match the meaning, not just the word
     const allTerms = [...new Set([...searchTerms, englishMeaning].filter(Boolean))];
     allImages.forEach(img => {
       let score = 0;
       const titleLower = (img.title || '').toLowerCase();
-      // Wikipedia source images tend to be more relevant
       if (img.source === 'wikipedia') score += 3;
-      // Boost images from the meaning-based search
       if (img.searchTerm === primaryWikiTerm && primaryWikiTerm !== kwLower) score += 5;
-      // Keyword/meaning appears in filename
       allTerms.forEach(term => {
-        const words = term.split(/\s+/);
-        words.forEach(w => {
+        term.split(/\s+/).forEach(w => {
           if (w.length >= 3 && titleLower.includes(w)) score += 2;
         });
       });
-      // Exact keyword match in title
       if (titleLower.includes(kwLower)) score += 3;
       if (englishMeaning && titleLower.includes(englishMeaning)) score += 4;
-      // Penalize images that contain unrelated animal/species names for adjective searches
       const animalTerms = ['duck', 'bird', 'fish', 'snake', 'frog', 'lizard', 'beetle', 'moth', 'butterfly', 'worm', 'spider'];
       if (englishMeaning && !englishMeaning.match(/duck|bird|fish|snake|frog|lizard|beetle|moth|butterfly|worm|spider/)) {
-        animalTerms.forEach(a => {
-          if (titleLower.includes(a)) score -= 8;
-        });
+        animalTerms.forEach(a => { if (titleLower.includes(a)) score -= 8; });
       }
       img.score = score;
     });
     allImages.sort((a, b) => b.score - a.score);
 
-    // Take top results
     let images = allImages.slice(0, 12).map(img => img.url);
 
-    // Fallback: if not enough images, pad with LoremFlickr using the meaning
     if (images.length < 6) {
       const fallbackTerm = englishMeaning || kwLower;
       const needed = 6 - images.length;
@@ -4125,7 +4146,7 @@ window.searchImagesForModal = async function(definitionContext) {
       }
     }
 
-    // Render results
+    // Render results with lazy loading + fade-in
     resultsContainer.innerHTML = '';
     if (images.length === 0) {
       resultsContainer.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:20px; opacity:0.5;">Không tìm thấy hình ảnh phù hợp.</div>';
@@ -4134,15 +4155,17 @@ window.searchImagesForModal = async function(definitionContext) {
     images.forEach((url, idx) => {
       const item = document.createElement('div');
       item.className = 'img-search-item';
-      item.innerHTML = `<img src="${url}" alt="Gợi ý ${idx+1}" onerror="this.src='https://placehold.co/150x110?text=Error+Loading'">`;
-      item.addEventListener('click', () => {
-        selectSuggestedImage(url);
-      });
+      item.style.opacity = '0';
+      item.style.transition = 'opacity 0.3s ease';
+      item.innerHTML = `<img src="${url}" alt="Gợi ý ${idx+1}" loading="lazy" onerror="this.src='https://placehold.co/150x110?text=Error+Loading'" onload="this.parentElement.style.opacity='1'">`;
+      // Show immediately if image is cached
+      requestAnimationFrame(() => { if (!item.style.opacity || item.style.opacity === '0') item.style.opacity = '1'; });
+      setTimeout(() => { item.style.opacity = '1'; }, 2000); // Force show after 2s max
+      item.addEventListener('click', () => selectSuggestedImage(url));
       resultsContainer.appendChild(item);
     });
   } catch (err) {
     console.error("Lỗi khi tải ảnh gợi ý:", err);
-    // Fallback hoàn toàn về LoremFlickr
     resultsContainer.innerHTML = '';
     const images = [];
     for (let i = 1; i <= 12; i++) {
@@ -4151,10 +4174,8 @@ window.searchImagesForModal = async function(definitionContext) {
     images.forEach((url, idx) => {
       const item = document.createElement('div');
       item.className = 'img-search-item';
-      item.innerHTML = `<img src="${url}" alt="Gợi ý ${idx+1}" onerror="this.src='https://placehold.co/150x110?text=Error+Loading'">`;
-      item.addEventListener('click', () => {
-        selectSuggestedImage(url);
-      });
+      item.innerHTML = `<img src="${url}" alt="Gợi ý ${idx+1}" loading="lazy" onerror="this.src='https://placehold.co/150x110?text=Error+Loading'">`;
+      item.addEventListener('click', () => selectSuggestedImage(url));
       resultsContainer.appendChild(item);
     });
   }
