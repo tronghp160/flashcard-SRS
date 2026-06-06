@@ -3221,6 +3221,14 @@ function checkWriteAnswer() {
     writeCorrect++;
     addStudyLog(card.id, 4);
     updateCardSRS(card.id, calculateSM2(4, card.repetition||0, card.interval||0, card.ease_factor||2.5));
+
+    const currentIndex = writeIndex;
+    setTimeout(() => {
+      if (writeIndex === currentIndex && activeView === 'set-detail' && !document.getElementById('subview-write').classList.contains('hidden')) {
+        writeIndex++;
+        loadWriteQuestion();
+      }
+    }, 1000);
   } else if (isAlmost) {
     inputEl.classList.add('almost');
     playAudioFeedback('fail');
