@@ -5102,4 +5102,384 @@ body.not-logged-in .auth-container {
   padding: 20px;
 }
 
+/* ==========================================
+   RESPONSIVE DESIGN (Mobile & Tablet)
+   ========================================== */
+
+/* Default hidden elements on desktop */
+.mobile-header {
+  display: none;
+}
+.sidebar-overlay {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  /* Mobile Header */
+  .mobile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background-color: var(--bg-sidebar);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0 16px;
+    z-index: 1000;
+    transition: background-color 0.3s ease;
+  }
+  
+  .mobile-menu-toggle {
+    background: none;
+    border: none;
+    color: var(--text-main);
+    font-size: 1.35rem;
+    cursor: pointer;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    transition: var(--transition);
+  }
+  
+  .mobile-menu-toggle:hover {
+    background-color: var(--bg-input);
+  }
+  
+  .mobile-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--text-main);
+  }
+
+  /* Sidebar transition on mobile */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 280px;
+    z-index: 1100;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: none;
+  }
+  
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: 5px 0 25px rgba(0, 0, 0, 0.15);
+  }
+
+  /* Overlay backdrop */
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1050;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+  
+  .sidebar-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Main Content adjustment */
+  .main-content {
+    margin-left: 0 !important;
+    padding: 16px !important;
+    margin-top: 60px !important;
+  }
+
+  /* Dashboard View */
+  .home-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  
+  .header-streak-widget {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .home-action-row {
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  #today-review-box,
+  .daily-goal-card {
+    width: 100% !important;
+    flex: none !important;
+  }
+  
+  .stats-grid-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  
+  .progress-legend {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  
+  .charts-row {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* Folders View */
+  .folders-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .folder-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .btn-create-folder-main {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .folder-detail-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  /* Study Navigation Bar */
+  .study-nav-bar {
+    flex-wrap: wrap;
+    gap: 12px;
+    padding-bottom: 12px;
+  }
+  
+  .study-nav-center {
+    order: 3;
+    width: 100%;
+    flex: none;
+  }
+  
+  .study-nav-right {
+    order: 2;
+    flex: 1;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  /* Study Stats Grid */
+  .study-stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  
+  .study-stat-card {
+    padding: 10px 6px;
+  }
+  
+  .study-stat-icon-wrapper {
+    display: none; /* Hide icons to save screen space */
+  }
+  
+  .study-stat-count {
+    font-size: 1.05rem;
+  }
+  
+  .study-stat-label {
+    font-size: 0.65rem;
+  }
+
+  /* Flashcards Screen Layout */
+  .flashcard-inner {
+    height: 320px; /* Reduced height to fit completely on mobile viewport */
+  }
+  
+  .card-face {
+    padding: 24px;
+  }
+  
+  .card-text {
+    font-size: 1.6rem;
+  }
+  
+  .card-img {
+    max-height: 100px;
+  }
+  
+  /* Rating Actions 2x2 grid */
+  .learning-actions-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    width: 100%;
+    margin-top: 16px;
+  }
+  
+  .btn-status-action {
+    width: 100%;
+    padding: 10px 4px;
+    font-size: 0.78rem;
+    justify-content: center;
+    border-radius: 20px;
+    margin: 0;
+  }
+  
+  .study-card-controls {
+    gap: 16px;
+    margin-top: 16px;
+  }
+  
+  .btn-control-arrow {
+    width: 44px;
+    height: 44px;
+  }
+  
+  .btn-control-flip {
+    width: 70px;
+    height: 70px;
+    font-size: 1.2rem;
+  }
+
+  /* Word Items Toolbar */
+  .word-list-toolbar {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .toolbar-select-group {
+    width: 100%;
+  }
+  
+  .toolbar-select {
+    flex: 1;
+  }
+
+  /* Match Game Layout */
+  .matching-grid {
+    grid-template-columns: repeat(2, 1fr) !important; /* 2 columns on mobile so cards are readable & tapable */
+    gap: 10px !important;
+  }
+  
+  .matching-item {
+    min-height: 80px !important;
+    padding: 12px 8px !important;
+    font-size: 0.85rem !important;
+    border-radius: 12px !important;
+  }
+  
+  .matching-result-stats-row {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin: 24px 0;
+  }
+  
+  .matching-stat-box {
+    padding: 12px;
+    gap: 10px;
+    border-radius: 12px;
+  }
+  
+  .matching-stat-value {
+    font-size: 1.1rem;
+  }
+  
+  .matching-result-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* Quiz Mode Layout */
+  .quiz-options-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  
+  .quiz-term-text {
+    font-size: 1.6rem;
+    padding: 8px 16px;
+  }
+  
+  .quiz-card {
+    padding: 24px 16px;
+  }
+  
+  .quiz-dashboard-stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  
+  .quiz-details-container {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  /* Write Mode Layout */
+  .write-card {
+    padding: 24px 16px;
+  }
+  
+  .write-definition-text {
+    font-size: 1.3rem;
+  }
+  
+  .write-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .write-actions button {
+    width: 100%;
+  }
+
+  /* Analytics page summary cards */
+  .analytics-summary-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  
+  .analytics-charts-row {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* Modals */
+  .modal-card {
+    width: 90%;
+    max-width: 400px;
+    padding: 20px;
+    border-radius: 16px;
+  }
+  
+  .modal-actions-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .modal-actions-row button {
+    width: 100%;
+  }
+}
+
+
 

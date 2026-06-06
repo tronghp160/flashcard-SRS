@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
@@ -28,6 +28,17 @@
   <meta name="apple-mobile-web-app-title" content="HPTEnglish SRS">
 </head>
 <body>
+
+  <!-- MOBILE HEADER -->
+  <header class="mobile-header">
+    <div class="mobile-logo">
+      <span>✨ HPTEnglish</span>
+      <span class="logo-badge">SRS</span>
+    </div>
+    <button id="mobile-menu-toggle" class="mobile-menu-toggle" aria-label="Menu">
+      <i class="fas fa-bars"></i>
+    </button>
+  </header>
 
   <div class="app-container">
     
@@ -111,6 +122,9 @@
         </div>
       </div>
     </aside>
+
+    <!-- Sidebar Overlay for mobile backdrop click-away -->
+    <div id="sidebar-overlay" class="sidebar-overlay"></div>
 
     <!-- MAIN AREA -->
     <main class="main-content">
@@ -1820,5 +1834,34 @@
 
   <!-- Script Module -->
   <script src="app.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const sidebar = document.querySelector('.sidebar');
+      const overlay = document.getElementById('sidebar-overlay');
+      const toggleBtn = document.getElementById('mobile-menu-toggle');
+
+      function toggleMobileSidebar() {
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('active');
+      }
+
+      if (toggleBtn) {
+        toggleBtn.addEventListener('click', toggleMobileSidebar);
+      }
+      if (overlay) {
+        overlay.addEventListener('click', toggleMobileSidebar);
+      }
+
+      // Close sidebar when clicking any navigation link/button on mobile
+      document.querySelectorAll('.sidebar .nav-btn, .sidebar .sidebar-folder-item, .sidebar .sidebar-tool-btn, .sidebar .sidebar-user-widget, .sidebar #sidebar-logout-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (window.innerWidth <= 768) {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('active');
+          }
+        });
+      });
+    });
+  </script>
 </body>
 </html>
