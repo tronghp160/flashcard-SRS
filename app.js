@@ -4413,40 +4413,47 @@ const DAILY_DATE_KEY = 'daily_review_date';
 const STREAK_KEY = 'study_streak';
 const STREAK_DATE_KEY = 'study_streak_last_date';
 
+function getUserKey(key) {
+  if (currentUser && currentUser.id) {
+    return `${currentUser.id}_${key}`;
+  }
+  return key;
+}
+
 function getDailyGoalTarget() {
-  return parseInt(localStorage.getItem(DAILY_GOAL_KEY) || '20');
+  return parseInt(localStorage.getItem(getUserKey(DAILY_GOAL_KEY)) || '20');
 }
 
 function setDailyGoalTarget(n) {
-  localStorage.setItem(DAILY_GOAL_KEY, n.toString());
+  localStorage.setItem(getUserKey(DAILY_GOAL_KEY), n.toString());
 }
 
 function getDailyCount() {
   const today = new Date().toISOString().split('T')[0];
-  const storedDate = localStorage.getItem(DAILY_DATE_KEY);
+  const storedDate = localStorage.getItem(getUserKey(DAILY_DATE_KEY));
   if (storedDate !== today) {
     // Reset count for new day
-    localStorage.setItem(DAILY_DATE_KEY, today);
-    localStorage.setItem(DAILY_COUNT_KEY, '0');
+    localStorage.setItem(getUserKey(DAILY_DATE_KEY), today);
+    localStorage.setItem(getUserKey(DAILY_COUNT_KEY), '0');
     return 0;
   }
-  return parseInt(localStorage.getItem(DAILY_COUNT_KEY) || '0');
+  return parseInt(localStorage.getItem(getUserKey(DAILY_COUNT_KEY)) || '0');
 }
 
 function incrementDailyCount(n = 1) {
   const today = new Date().toISOString().split('T')[0];
-  localStorage.setItem(DAILY_DATE_KEY, today);
+  localStorage.setItem(getUserKey(DAILY_DATE_KEY), today);
   const current = getDailyCount();
   const newCount = current + n;
-  localStorage.setItem(DAILY_COUNT_KEY, newCount.toString());
+  localStorage.setItem(getUserKey(DAILY_COUNT_KEY), newCount.toString());
 
   // Check and update streak
-  const lastDate = localStorage.getItem(STREAK_DATE_KEY);
+  const lastDate = localStorage.getItem(getUserKey(STREAK_DATE_KEY));
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayStr = yesterday.toISOString().split('T')[0];
 
-  let streak = parseInt(localStorage.getItem(STREAK_KEY) || '0');
+  let streak = parseInt(localStorage.getItem(getUserKey(STREAK_KEY)) || '0');
   if (lastDate !== today) {
     if (lastDate === yesterdayStr || streak === 0) {
       streak++;
@@ -4455,8 +4462,8 @@ function incrementDailyCount(n = 1) {
     } else {
       streak = 1; // reset streak for missing a day
     }
-    localStorage.setItem(STREAK_KEY, streak.toString());
-    localStorage.setItem(STREAK_DATE_KEY, today);
+    localStorage.setItem(getUserKey(STREAK_KEY), streak.toString());
+    localStorage.setItem(getUserKey(STREAK_DATE_KEY), today);
   }
 
   updateDailyGoalUI(newCount, getDailyGoalTarget(), streak);
@@ -4472,7 +4479,7 @@ function updateDailyGoalUI(count, target, streak) {
 
   if (goalEl) goalEl.innerText = count;
   if (targetEl) targetEl.innerText = target;
-  if (streakEl) streakEl.innerText = streak !== undefined ? streak : (parseInt(localStorage.getItem(STREAK_KEY) || '0'));
+  if (streakEl) streakEl.innerText = streak !== undefined ? streak : (parseInt(localStorage.getItem(getUserKey(STREAK_KEY)) || '0'));
 
   if (ringFill) {
     const pct = Math.min(count / target, 1);
@@ -4493,13 +4500,13 @@ function updateDailyGoalUI(count, target, streak) {
 
 function updateSidebarStreak(streak) {
   const el = document.getElementById('sidebar-streak');
-  if (el) el.innerText = streak !== undefined ? streak : (localStorage.getItem(STREAK_KEY) || '0');
+  if (el) el.innerText = streak !== undefined ? streak : (localStorage.getItem(getUserKey(STREAK_KEY)) || '0');
 }
 
 function initDailyGoalUI() {
   const count = getDailyCount();
   const target = getDailyGoalTarget();
-  const streak = parseInt(localStorage.getItem(STREAK_KEY) || '0');
+  const streak = parseInt(localStorage.getItem(getUserKey(STREAK_KEY)) || '0');
   updateDailyGoalUI(count, target, streak);
   updateSidebarStreak(streak);
 }
@@ -5242,7 +5249,7 @@ initDailyGoalUI();
 
 // Update home view stats after load
 setTimeout(() => {
-  const savedStreak = parseInt(localStorage.getItem(STREAK_KEY) || '0');
+  const savedStreak = parseInt(localStorage.getItem(getUserKey(STREAK_KEY)) || '0');
   updateSidebarStreak(savedStreak);
 }, 500);
 
