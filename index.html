@@ -740,13 +740,14 @@
             </div>
 
             <!-- Quiz Card -->
-            <div id="quiz-card-panel" class="quiz-card">
-              <div class="quiz-term-row">
+            <div id="quiz-card-panel" class="quiz-card" style="display: flex; flex-direction: column; align-items: center;">
+              <div class="quiz-term-row" style="width: 100%;">
                 <span id="quizTermDisplay" class="quiz-term-text">Term</span>
                 <button id="speakQuizTermBtn" class="btn-speak" title="Phát âm từ">
                   <i class="fas fa-volume-up"></i>
                 </button>
               </div>
+              <img id="quiz-card-image" class="card-img" style="display: none; margin: 15px auto;" alt="" draggable="false" />
               
               <div class="options-area">
                 <div id="quizOptionsGrid" class="quiz-options-grid"></div>
@@ -858,11 +859,12 @@
             </div>
 
             <!-- Write card -->
-            <div id="write-card-panel" class="write-card">
-              <div class="write-card-prompt">
+            <div id="write-card-panel" class="write-card" style="display: flex; flex-direction: column; align-items: center;">
+              <div class="write-card-prompt" style="width: 100%; text-align: center; display: flex; flex-direction: column; align-items: center;">
                 <div class="write-card-tag">Nhìn định nghĩa, viết từ tiếng Anh</div>
                 <div id="write-definition" class="write-definition-text">Definition here</div>
                 <div id="write-hint-text" class="write-hint-text"></div>
+                <img id="write-card-image" class="card-img" style="display: none; margin: 15px auto;" alt="" draggable="false" />
               </div>
 
               <div class="write-input-area">

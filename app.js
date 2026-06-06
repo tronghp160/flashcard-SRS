@@ -1313,7 +1313,10 @@ function renderSetTermsList() {
           ${c.word_type ? `<span class="word-row-type-badge">${escapeHtml(c.word_type)}</span>` : ''}
         </div>
         <div class="word-row-divider"></div>
-        <div class="word-row-def">${escapeHtml(c.back_meaning)}</div>
+        <div class="word-row-def" style="display: flex; align-items: center; gap: 12px;">
+          ${c.existing_image_url ? `<img src="${c.existing_image_url}" style="width: 45px; height: 45px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border-color);" alt="" draggable="false" />` : ''}
+          <span>${escapeHtml(c.back_meaning)}</span>
+        </div>
       </div>
       <button class="word-row-speak-btn" onclick="event.stopPropagation(); speakText('${c.front_word.replace(/'/g, "\\'")}', 'en-US')">
         <i class="fas fa-volume-up"></i>
@@ -1845,7 +1848,7 @@ document.getElementById('m-start-btn').addEventListener('click', () => {
   const subset = currentSetCards.slice(0, 6);
   subset.forEach((c, idx) => {
     mItems.push({ id: `t${idx}`, text: c.front_word, type: 'term', pairId: idx, matched: false });
-    mItems.push({ id: `d${idx}`, text: c.back_meaning, type: 'definition', pairId: idx, matched: false });
+    mItems.push({ id: `d${idx}`, text: c.back_meaning, type: 'definition', pairId: idx, matched: false, imageUrl: c.existing_image_url });
   });
 
   // Shuffle
@@ -1872,7 +1875,16 @@ function renderMatchingGrid() {
   mItems.forEach(item => {
     const el = document.createElement('div');
     el.className = `matching-item ${item.type} ${item.matched ? 'matched' : ''} ${item.id === mSelectedId ? 'selected' : ''}`;
-    el.innerText = item.text;
+    if (item.type === 'definition' && item.imageUrl) {
+      el.innerHTML = `
+        <div style="display:flex; align-items:center; gap:8px; width:100%; justify-content:center; flex-wrap:wrap;">
+          <img src="${item.imageUrl}" style="width: 36px; height: 36px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border-color);" alt="" draggable="false" />
+          <span>${escapeHtml(item.text)}</span>
+        </div>
+      `;
+    } else {
+      el.innerText = item.text;
+    }
     el.addEventListener('click', () => handleMatchingSelect(item));
     grid.appendChild(el);
   });
@@ -2064,6 +2076,18 @@ function loadQuizQuestion() {
   document.getElementById('quizTermDisplay').innerHTML = escapeHtml(card.front_word) + 
     (card.phonetic ? ` <span class="quiz-phonetic">${escapeHtml(card.phonetic)}</span>` : '') +
     (card.word_type ? ` <span class="quiz-word-type">(${escapeHtml(card.word_type)})</span>` : '');
+  
+  const img = document.getElementById('quiz-card-image');
+  if (img) {
+    if (card.existing_image_url) {
+      img.src = card.existing_image_url;
+      img.style.display = 'block';
+    } else {
+      img.src = '';
+      img.style.display = 'none';
+    }
+  }
+
   document.getElementById('quizFeedback').innerHTML = '';
   document.getElementById('quizSkipBtn').disabled = false;
   quizIsAnswered = false;
@@ -3121,6 +3145,18 @@ function loadWriteQuestion() {
   document.getElementById('write-definition').innerHTML = escapeHtml(card.back_meaning) + 
     (card.phonetic ? ` <span class="write-phonetic">${escapeHtml(card.phonetic)}</span>` : '') +
     (card.word_type ? ` <span class="write-word-type">(${escapeHtml(card.word_type)})</span>` : '');
+  
+  const img = document.getElementById('write-card-image');
+  if (img) {
+    if (card.existing_image_url) {
+      img.src = card.existing_image_url;
+      img.style.display = 'block';
+    } else {
+      img.src = '';
+      img.style.display = 'none';
+    }
+  }
+
   document.getElementById('write-hint-text').innerText = card.hint ? `Gợi ý: ${card.hint}` : '';
   document.getElementById('write-answer-input').value = '';
   document.getElementById('write-answer-input').className = 'write-answer-input';
