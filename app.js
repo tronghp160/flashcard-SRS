@@ -3851,41 +3851,124 @@ window.searchImagesForModal = async function() {
   resultsContainer.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Đang tải ảnh gợi ý...</div>';
 
   try {
-    // 1. Tra cứu Wikimedia Commons để lấy ảnh chuẩn xác theo từ khóa
-    const wikiUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(keyword.toLowerCase())}&gsrnamespace=6&prop=imageinfo&iiprop=url&iiurlwidth=400&format=json&origin=*&gsrlimit=30`;
-    const res = await fetch(wikiUrl);
-    let wikiImages = [];
-    if (res.ok) {
-      const data = await res.json();
-      const pages = data.query?.pages || {};
-      wikiImages = Object.values(pages)
-        .map(p => {
-          const info = p.imageinfo?.[0];
-          return info?.thumburl || info?.url || "";
-        })
-        .filter(url => {
-          if (!url) return false;
-          const lower = url.toLowerCase();
-          return lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.png') || lower.endsWith('.webp');
+    let allImages = [];
+    const kwLower = keyword.toLowerCase();
+
+    // === Source 1: Wikipedia article images (highest relevance) ===
+    // Get the main article's images - these are curated by Wikipedia editors
+    try {
+      const wikiArticleUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(keyword)}&prop=images&imlimit=20&format=json&origin=*`;
+      const artRes = await fetch(wikiArticleUrl);
+      if (artRes.ok) {
+        const artData = await artRes.json();
+        const pages = artData.query?.pages || {};
+        const imageNames = [];
+        Object.values(pages).forEach(p => {
+          if (p.images) {
+            p.images.forEach(img => {
+              const title = img.title || '';
+              const lower = title.toLowerCase();
+              // Filter out icons, logos, commons-logo, wiki assets, SVGs
+              if (lower.endsWith('.svg') || lower.includes('icon') || lower.includes('logo') || 
+                  lower.includes('flag') || lower.includes('edit-') || lower.includes('commons-') ||
+                  lower.includes('wikidata') || lower.includes('disambig') || lower.includes('question_book') ||
+                  lower.includes('ambox') || lower.includes('symbol') || lower.includes('wiki') ||
+                  lower.includes('padlock') || lower.includes('crystal') || lower.includes('nuvola')) return;
+              imageNames.push(title);
+            });
+          }
         });
-    }
 
-    // Lọc trùng lặp
-    let images = [...new Set(wikiImages)];
+        // Fetch actual URLs for these images
+        if (imageNames.length > 0) {
+          const batchSize = 10;
+          for (let i = 0; i < Math.min(imageNames.length, 20); i += batchSize) {
+            const batch = imageNames.slice(i, i + batchSize);
+            const titlesParam = batch.map(t => encodeURIComponent(t)).join('|');
+            const imgInfoUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${titlesParam}&prop=imageinfo&iiprop=url&iiurlwidth=500&format=json&origin=*`;
+            const infoRes = await fetch(imgInfoUrl);
+            if (infoRes.ok) {
+              const infoData = await infoRes.json();
+              const infoPages = infoData.query?.pages || {};
+              Object.values(infoPages).forEach(p => {
+                const info = p.imageinfo?.[0];
+                const url = info?.thumburl || info?.url || '';
+                if (url && (url.toLowerCase().endsWith('.jpg') || url.toLowerCase().endsWith('.jpeg') || url.toLowerCase().endsWith('.png') || url.toLowerCase().endsWith('.webp'))) {
+                  allImages.push({ url, source: 'wikipedia', title: p.title || '' });
+                }
+              });
+            }
+          }
+        }
+      }
+    } catch(e) { console.warn('Wikipedia article images failed:', e); }
 
-    // Nếu không đủ 12 ảnh, bù bằng LoremFlickr
-    if (images.length < 12) {
-      const needed = 12 - images.length;
+    // === Source 2: Wikimedia Commons search (broader pool) ===
+    try {
+      const commonsUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(kwLower)}+filetype:bitmap&gsrnamespace=6&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=500&format=json&origin=*&gsrlimit=30`;
+      const commonsRes = await fetch(commonsUrl);
+      if (commonsRes.ok) {
+        const commonsData = await commonsRes.json();
+        const commonsPages = commonsData.query?.pages || {};
+        Object.values(commonsPages).forEach(p => {
+          const info = p.imageinfo?.[0];
+          const url = info?.thumburl || info?.url || '';
+          const title = p.title || '';
+          const lower = url.toLowerCase();
+          if (!url || !(lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.png') || lower.endsWith('.webp'))) return;
+          // Filter out icons, logos, flags, and other non-photo content
+          const titleLower = title.toLowerCase();
+          if (titleLower.includes('icon') || titleLower.includes('logo') || titleLower.includes('flag') ||
+              titleLower.includes('map') || titleLower.includes('diagram') || titleLower.includes('chart') ||
+              titleLower.includes('symbol') || titleLower.includes('button') || titleLower.includes('arrow')) return;
+          allImages.push({ url, source: 'commons', title });
+        });
+      }
+    } catch(e) { console.warn('Wikimedia Commons search failed:', e); }
+
+    // === Deduplicate by URL ===
+    const seen = new Set();
+    allImages = allImages.filter(img => {
+      if (seen.has(img.url)) return false;
+      seen.add(img.url);
+      return true;
+    });
+
+    // === Score and sort by relevance ===
+    // Images whose filename contains the keyword are ranked higher
+    const kwWords = kwLower.split(/\s+/);
+    allImages.forEach(img => {
+      let score = 0;
+      const titleLower = (img.title || '').toLowerCase();
+      // Wikipedia source images tend to be more relevant
+      if (img.source === 'wikipedia') score += 5;
+      // Keyword appears in filename
+      kwWords.forEach(w => {
+        if (w.length >= 3 && titleLower.includes(w)) score += 3;
+      });
+      // Exact keyword match in title
+      if (titleLower.includes(kwLower)) score += 4;
+      img.score = score;
+    });
+    allImages.sort((a, b) => b.score - a.score);
+
+    // Take top results
+    let images = allImages.slice(0, 12).map(img => img.url);
+
+    // Fallback: if not enough images, pad with LoremFlickr
+    if (images.length < 6) {
+      const needed = 6 - images.length;
       for (let i = 1; i <= needed; i++) {
-        images.push(`https://loremflickr.com/400/300/${encodeURIComponent(keyword.toLowerCase())}?random=${i}`);
+        images.push(`https://loremflickr.com/400/300/${encodeURIComponent(kwLower)}?random=${i}`);
       }
     }
 
-    // Giới hạn tối đa 12 ảnh
-    images = images.slice(0, 12);
-
-    // Render các item ảnh
+    // Render results
     resultsContainer.innerHTML = '';
+    if (images.length === 0) {
+      resultsContainer.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:20px; opacity:0.5;">Không tìm thấy hình ảnh phù hợp.</div>';
+      return;
+    }
     images.forEach((url, idx) => {
       const item = document.createElement('div');
       item.className = 'img-search-item';
