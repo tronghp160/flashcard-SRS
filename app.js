@@ -13,12 +13,14 @@ try {
   console.error("Error parsing current user:", e);
 }
 
-// Intercept fetch requests to append Authorization header
+// Intercept fetch requests to append Authorization header (only for local API calls to prevent CORS preflight issues with external APIs)
 const originalFetch = window.fetch;
 window.fetch = async function(url, options) {
   options = options || {};
   options.headers = options.headers || {};
-  if (token && !options.headers['Authorization']) {
+  const urlStr = typeof url === 'string' ? url : (url && url.href ? url.href : String(url));
+  const isLocalApi = urlStr.startsWith('/') || urlStr.startsWith(window.location.origin);
+  if (isLocalApi && token && !options.headers['Authorization']) {
     options.headers['Authorization'] = `Bearer ${token}`;
   }
   return originalFetch(url, options);
