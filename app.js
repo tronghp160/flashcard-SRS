@@ -3766,43 +3766,109 @@ async function autoFillCardRow(row) {
     defInput.placeholder = "ĐỊNH NGHĨA";
   }
 
-  // 2. Tra cứu Loại từ & Phiên âm bằng Dictionary API
-  try {
-    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
-    if (res.ok) {
-      const data = await res.json();
-      const entry = data[0];
-      
-      // Lấy phiên âm
-      const phonetic = entry.phonetic || entry.phonetics?.find(p => p.text)?.text || "";
-      if (phonetic && !phoneticInput.value) {
-        phoneticInput.value = phonetic;
-        phoneticInput.parentElement?.classList.add('flash-success');
-        setTimeout(() => phoneticInput.parentElement?.classList.remove('flash-success'), 1000);
-      }
-
-      // Lấy loại từ
-      let pos = entry.meanings?.[0]?.partOfSpeech || "";
-      if (pos) {
-        const posMap = {
-          "noun": "n. (Danh từ)",
-          "verb": "v. (Động từ)",
-          "adjective": "adj. (Tính từ)",
-          "adverb": "adv. (Trạng từ)",
-          "preposition": "prep. (Giới từ)",
-          "conjunction": "conj. (Liên từ)"
-        };
-        const posShort = posMap[pos.toLowerCase()] || pos;
-        if (!typeInput.value) {
-          typeInput.value = posShort;
-          typeInput.parentElement?.classList.add('flash-success');
-          setTimeout(() => typeInput.parentElement?.classList.remove('flash-success'), 1000);
+  // 2. Tra cứu Loại từ & Phiên âm bằng Dictionary API (with lemmatization fallback)
+  // Helper: try to get the base/lemma form for dictionary lookup
+  function getLemmaForms(w) {
+    const forms = [w];
+    const lower = w.toLowerCase();
+    const rules = [
+      { suffix: 'ied', replace: 'y' },
+      { suffix: 'ies', replace: 'y' },
+      { suffix: 'eed', replace: 'ee' },
+      { suffix: 'led', replace: 'le' },  // freckled -> freckle
+      { suffix: 'ted', replace: 'te' },  // created -> create
+      { suffix: 'ned', replace: 'ne' },  // defined -> define
+      { suffix: 'red', replace: 're' },  // prepared -> prepare
+      { suffix: 'sed', replace: 'se' },  // caused -> cause
+      { suffix: 'ved', replace: 've' },  // loved -> love
+      { suffix: 'zing', replace: 'ze' }, // amazing -> amaze
+      { suffix: 'ning', replace: 'ne' }, // defining -> define
+      { suffix: 'ting', replace: 'te' }, // creating -> create
+      { suffix: 'ring', replace: 're' }, // preparing -> prepare
+      { suffix: 'ving', replace: 've' }, // loving -> love
+      { suffix: 'sing', replace: 'se' }, // causing -> cause
+      { suffix: 'ing', replace: '' },
+      { suffix: 'ing', replace: 'e' },
+      { suffix: 'ed', replace: '' },
+      { suffix: 'ed', replace: 'e' },
+      { suffix: 'ness', replace: '' },
+      { suffix: 'ment', replace: '' },
+      { suffix: 'ly', replace: '' },
+      { suffix: 'ful', replace: '' },
+      { suffix: 'less', replace: '' },
+      { suffix: 'er', replace: '' },
+      { suffix: 'er', replace: 'e' },
+      { suffix: 'est', replace: '' },
+      { suffix: 'est', replace: 'e' },
+      { suffix: 'es', replace: '' },
+      { suffix: 's', replace: '' },
+    ];
+    for (const rule of rules) {
+      if (lower.endsWith(rule.suffix) && lower.length > rule.suffix.length + 2) {
+        let base = lower.slice(0, -rule.suffix.length) + rule.replace;
+        // Fix double consonants: e.g. running -> runn -> run
+        if (base.length >= 2 && base[base.length - 1] === base[base.length - 2] && !/[aeiou]/.test(base[base.length - 1])) {
+          base = base.slice(0, -1);
         }
+        if (base.length >= 3 && !forms.includes(base)) forms.push(base);
       }
-    } else {
-      if (res.status === 404) {
-        showToast(`Không tìm thấy phiên âm/loại từ cho "${word}". Vui lòng kiểm tra lại chính tả!`, 'error');
+    }
+    return [...new Set(forms)];
+  }
+
+  try {
+    let foundPhonetic = false;
+    let foundPos = false;
+    const wordForms = getLemmaForms(word);
+
+    for (const tryWord of wordForms) {
+      if (foundPhonetic && foundPos) break;
+      try {
+        const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(tryWord)}`);
+        if (res.ok) {
+          const data = await res.json();
+          const entry = data[0];
+          
+          // Lấy phiên âm
+          if (!foundPhonetic) {
+            const phonetic = entry.phonetic || entry.phonetics?.find(p => p.text)?.text || "";
+            if (phonetic && !phoneticInput.value) {
+              phoneticInput.value = phonetic;
+              phoneticInput.parentElement?.classList.add('flash-success');
+              setTimeout(() => phoneticInput.parentElement?.classList.remove('flash-success'), 1000);
+              foundPhonetic = true;
+            }
+          }
+
+          // Lấy loại từ
+          if (!foundPos) {
+            let pos = entry.meanings?.[0]?.partOfSpeech || "";
+            if (pos) {
+              const posMap = {
+                "noun": "n. (Danh từ)",
+                "verb": "v. (Động từ)",
+                "adjective": "adj. (Tính từ)",
+                "adverb": "adv. (Trạng từ)",
+                "preposition": "prep. (Giới từ)",
+                "conjunction": "conj. (Liên từ)"
+              };
+              const posShort = posMap[pos.toLowerCase()] || pos;
+              if (!typeInput.value) {
+                typeInput.value = posShort;
+                typeInput.parentElement?.classList.add('flash-success');
+                setTimeout(() => typeInput.parentElement?.classList.remove('flash-success'), 1000);
+                foundPos = true;
+              }
+            }
+          }
+        }
+      } catch (innerErr) {
+        console.warn(`Dictionary lookup failed for "${tryWord}":`, innerErr);
       }
+    }
+
+    if (!foundPhonetic && !foundPos) {
+      showToast(`Không tìm thấy phiên âm/loại từ cho "${word}". Vui lòng kiểm tra lại chính tả!`, 'error');
     }
   } catch (err) {
     console.error("Tra cứu từ điển thất bại:", err);
@@ -3826,19 +3892,64 @@ window.openImageSearchModal = function(box) {
   currentImgTargetRow = row;
   
   const termInput = row.querySelector('.row-term-input');
+  const defInput = row.querySelector('.row-def-input');
   const keyword = termInput ? termInput.value.trim() : '';
+  const definition = defInput ? defInput.value.trim() : '';
   
   document.getElementById('img-search-keyword').value = keyword;
   document.getElementById('imageSearchModal').classList.add('active');
   
-  searchImagesForModal();
+  searchImagesForModal(definition);
 };
 
 window.closeImageSearchModal = function() {
   document.getElementById('imageSearchModal').classList.remove('active');
 };
 
-window.searchImagesForModal = async function() {
+// Helper: extract the English base/lemma form and related search terms
+function getSmartSearchTerms(keyword, definition) {
+  const kw = keyword.toLowerCase().trim();
+  const terms = [kw];
+
+  // Try to get the base/lemma form for inflected words
+  // Strip common suffixes: -ed, -ing, -s, -es, -ly, -ness, -ment, -tion, -ful, -less
+  const lemmaRules = [
+    { suffix: 'ied', replace: 'y' },    // carried -> carry
+    { suffix: 'ies', replace: 'y' },    // carries -> carry  
+    { suffix: 'eed', replace: 'ee' },   // freed -> free
+    { suffix: 'eed', replace: 'eed' },  // keep as is
+    { suffix: 'ed', replace: '' },      // freckled -> freckl -> freckle
+    { suffix: 'ing', replace: '' },     // running -> runn
+    { suffix: 'ing', replace: 'e' },    // making -> make
+    { suffix: 'ness', replace: '' },    // happiness -> happi
+    { suffix: 'ly', replace: '' },      // quickly -> quick
+    { suffix: 'ful', replace: '' },     // beautiful -> beauti
+    { suffix: 'less', replace: '' },    // careless -> care
+    { suffix: 'es', replace: '' },      // boxes -> box
+    { suffix: 's', replace: '' },       // cats -> cat
+  ];
+
+  for (const rule of lemmaRules) {
+    if (kw.endsWith(rule.suffix) && kw.length > rule.suffix.length + 2) {
+      let base = kw.slice(0, -rule.suffix.length) + rule.replace;
+      // Fix double consonants: freckl -> freckle, runn -> run
+      if (base.length >= 2 && base[base.length - 1] === base[base.length - 2]) {
+        base = base.slice(0, -1);
+      }
+      // Add 'e' if the base looks incomplete (consonant cluster ending)
+      if (base.length >= 3 && !base.endsWith('e') && !/[aeiou]$/.test(base)) {
+        terms.push(base + 'e');
+      }
+      if (!terms.includes(base)) terms.push(base);
+    }
+  }
+
+  // Use the Vietnamese definition to translate back to English noun for better image search
+  // This will be done asynchronously in the main function
+  return [...new Set(terms)];
+}
+
+window.searchImagesForModal = async function(definitionContext) {
   const keyword = document.getElementById('img-search-keyword').value.trim();
   const resultsContainer = document.getElementById('image-search-results');
   resultsContainer.innerHTML = '';
@@ -3848,83 +3959,120 @@ window.searchImagesForModal = async function() {
     return;
   }
 
+  // If no definition provided, try to get it from the current target row
+  if (!definitionContext && currentImgTargetRow) {
+    const defInput = currentImgTargetRow.querySelector('.row-def-input');
+    definitionContext = defInput ? defInput.value.trim() : '';
+  }
+
   resultsContainer.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Đang tải ảnh gợi ý...</div>';
 
   try {
     let allImages = [];
     const kwLower = keyword.toLowerCase();
+    const searchTerms = getSmartSearchTerms(keyword, definitionContext);
 
-    // === Source 1: Wikipedia article images (highest relevance) ===
-    // Get the main article's images - these are curated by Wikipedia editors
-    try {
-      const wikiArticleUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(keyword)}&prop=images&imlimit=20&format=json&origin=*`;
-      const artRes = await fetch(wikiArticleUrl);
-      if (artRes.ok) {
-        const artData = await artRes.json();
-        const pages = artData.query?.pages || {};
-        const imageNames = [];
-        Object.values(pages).forEach(p => {
-          if (p.images) {
-            p.images.forEach(img => {
-              const title = img.title || '';
-              const lower = title.toLowerCase();
-              // Filter out icons, logos, commons-logo, wiki assets, SVGs
-              if (lower.endsWith('.svg') || lower.includes('icon') || lower.includes('logo') || 
-                  lower.includes('flag') || lower.includes('edit-') || lower.includes('commons-') ||
-                  lower.includes('wikidata') || lower.includes('disambig') || lower.includes('question_book') ||
-                  lower.includes('ambox') || lower.includes('symbol') || lower.includes('wiki') ||
-                  lower.includes('padlock') || lower.includes('crystal') || lower.includes('nuvola')) return;
-              imageNames.push(title);
-            });
+    // === Step 0: Translate Vietnamese definition back to English for better search context ===
+    let englishMeaning = '';
+    if (definitionContext) {
+      try {
+        const transRes = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=vi&tl=en&dt=t&q=${encodeURIComponent(definitionContext)}`);
+        if (transRes.ok) {
+          const transData = await transRes.json();
+          englishMeaning = (transData[0][0][0] || '').toLowerCase().trim();
+          // Add the English meaning words as additional search terms
+          if (englishMeaning && englishMeaning !== kwLower) {
+            searchTerms.push(englishMeaning);
           }
-        });
+        }
+      } catch(e) { console.warn('Translation for image context failed:', e); }
+    }
 
-        // Fetch actual URLs for these images
-        if (imageNames.length > 0) {
-          const batchSize = 10;
-          for (let i = 0; i < Math.min(imageNames.length, 20); i += batchSize) {
-            const batch = imageNames.slice(i, i + batchSize);
-            const titlesParam = batch.map(t => encodeURIComponent(t)).join('|');
-            const imgInfoUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${titlesParam}&prop=imageinfo&iiprop=url&iiurlwidth=500&format=json&origin=*`;
-            const infoRes = await fetch(imgInfoUrl);
-            if (infoRes.ok) {
-              const infoData = await infoRes.json();
-              const infoPages = infoData.query?.pages || {};
-              Object.values(infoPages).forEach(p => {
-                const info = p.imageinfo?.[0];
-                const url = info?.thumburl || info?.url || '';
-                if (url && (url.toLowerCase().endsWith('.jpg') || url.toLowerCase().endsWith('.jpeg') || url.toLowerCase().endsWith('.png') || url.toLowerCase().endsWith('.webp'))) {
-                  allImages.push({ url, source: 'wikipedia', title: p.title || '' });
-                }
+    // Determine the best Wikipedia search term
+    // Use the English meaning from definition if available (e.g. "freckled" + def "tàn nhang" → search "freckle")
+    // The primary search should be the noun/base form of the concept
+    const primaryWikiTerm = englishMeaning || searchTerms.find(t => t !== kwLower) || kwLower;
+
+    // === Source 1: Wikipedia article images with smart term ===
+    const wikiTermsToTry = [...new Set([primaryWikiTerm, ...searchTerms])].slice(0, 3);
+    for (const wikiTerm of wikiTermsToTry) {
+      try {
+        const wikiArticleUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(wikiTerm)}&prop=images&imlimit=15&format=json&origin=*`;
+        const artRes = await fetch(wikiArticleUrl);
+        if (artRes.ok) {
+          const artData = await artRes.json();
+          const pages = artData.query?.pages || {};
+          const imageNames = [];
+          Object.values(pages).forEach(p => {
+            // Skip if page is a redirect miss (-1 id)
+            if (p.missing !== undefined) return;
+            if (p.images) {
+              p.images.forEach(img => {
+                const title = img.title || '';
+                const lower = title.toLowerCase();
+                // Filter out icons, logos, commons-logo, wiki assets, SVGs
+                if (lower.endsWith('.svg') || lower.includes('icon') || lower.includes('logo') || 
+                    lower.includes('flag') || lower.includes('edit-') || lower.includes('commons-') ||
+                    lower.includes('wikidata') || lower.includes('disambig') || lower.includes('question_book') ||
+                    lower.includes('ambox') || lower.includes('symbol') || lower.includes('wiki') ||
+                    lower.includes('padlock') || lower.includes('crystal') || lower.includes('nuvola') ||
+                    lower.includes('folder') || lower.includes('increase') || lower.includes('decrease') ||
+                    lower.includes('template') || lower.includes('stub')) return;
+                imageNames.push(title);
               });
+            }
+          });
+
+          // Fetch actual URLs for these images
+          if (imageNames.length > 0) {
+            const batchSize = 10;
+            for (let i = 0; i < Math.min(imageNames.length, 15); i += batchSize) {
+              const batch = imageNames.slice(i, i + batchSize);
+              const titlesParam = batch.map(t => encodeURIComponent(t)).join('|');
+              const imgInfoUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${titlesParam}&prop=imageinfo&iiprop=url&iiurlwidth=500&format=json&origin=*`;
+              const infoRes = await fetch(imgInfoUrl);
+              if (infoRes.ok) {
+                const infoData = await infoRes.json();
+                const infoPages = infoData.query?.pages || {};
+                Object.values(infoPages).forEach(p => {
+                  const info = p.imageinfo?.[0];
+                  const url = info?.thumburl || info?.url || '';
+                  if (url && (url.toLowerCase().endsWith('.jpg') || url.toLowerCase().endsWith('.jpeg') || url.toLowerCase().endsWith('.png') || url.toLowerCase().endsWith('.webp'))) {
+                    allImages.push({ url, source: 'wikipedia', title: p.title || '', searchTerm: wikiTerm });
+                  }
+                });
+              }
             }
           }
         }
-      }
-    } catch(e) { console.warn('Wikipedia article images failed:', e); }
+      } catch(e) { console.warn(`Wikipedia images failed for "${wikiTerm}":`, e); }
+    }
 
-    // === Source 2: Wikimedia Commons search (broader pool) ===
-    try {
-      const commonsUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(kwLower)}+filetype:bitmap&gsrnamespace=6&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=500&format=json&origin=*&gsrlimit=30`;
-      const commonsRes = await fetch(commonsUrl);
-      if (commonsRes.ok) {
-        const commonsData = await commonsRes.json();
-        const commonsPages = commonsData.query?.pages || {};
-        Object.values(commonsPages).forEach(p => {
-          const info = p.imageinfo?.[0];
-          const url = info?.thumburl || info?.url || '';
-          const title = p.title || '';
-          const lower = url.toLowerCase();
-          if (!url || !(lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.png') || lower.endsWith('.webp'))) return;
-          // Filter out icons, logos, flags, and other non-photo content
-          const titleLower = title.toLowerCase();
-          if (titleLower.includes('icon') || titleLower.includes('logo') || titleLower.includes('flag') ||
-              titleLower.includes('map') || titleLower.includes('diagram') || titleLower.includes('chart') ||
-              titleLower.includes('symbol') || titleLower.includes('button') || titleLower.includes('arrow')) return;
-          allImages.push({ url, source: 'commons', title });
-        });
-      }
-    } catch(e) { console.warn('Wikimedia Commons search failed:', e); }
+    // === Source 2: Wikimedia Commons search with multiple terms ===
+    const commonsSearchTerms = [...new Set([primaryWikiTerm, kwLower])].slice(0, 2);
+    for (const commTerm of commonsSearchTerms) {
+      try {
+        const commonsUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(commTerm)}+filetype:bitmap&gsrnamespace=6&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=500&format=json&origin=*&gsrlimit=20`;
+        const commonsRes = await fetch(commonsUrl);
+        if (commonsRes.ok) {
+          const commonsData = await commonsRes.json();
+          const commonsPages = commonsData.query?.pages || {};
+          Object.values(commonsPages).forEach(p => {
+            const info = p.imageinfo?.[0];
+            const url = info?.thumburl || info?.url || '';
+            const title = p.title || '';
+            const lower = url.toLowerCase();
+            if (!url || !(lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.png') || lower.endsWith('.webp'))) return;
+            // Filter out icons, logos, flags, and other non-photo content
+            const titleLower = title.toLowerCase();
+            if (titleLower.includes('icon') || titleLower.includes('logo') || titleLower.includes('flag') ||
+                titleLower.includes('map') || titleLower.includes('diagram') || titleLower.includes('chart') ||
+                titleLower.includes('symbol') || titleLower.includes('button') || titleLower.includes('arrow')) return;
+            allImages.push({ url, source: 'commons', title, searchTerm: commTerm });
+          });
+        }
+      } catch(e) { console.warn(`Wikimedia Commons failed for "${commTerm}":`, e); }
+    }
 
     // === Deduplicate by URL ===
     const seen = new Set();
@@ -3935,19 +4083,32 @@ window.searchImagesForModal = async function() {
     });
 
     // === Score and sort by relevance ===
-    // Images whose filename contains the keyword are ranked higher
-    const kwWords = kwLower.split(/\s+/);
+    // Prioritize images that match the meaning, not just the word
+    const allTerms = [...new Set([...searchTerms, englishMeaning].filter(Boolean))];
     allImages.forEach(img => {
       let score = 0;
       const titleLower = (img.title || '').toLowerCase();
       // Wikipedia source images tend to be more relevant
-      if (img.source === 'wikipedia') score += 5;
-      // Keyword appears in filename
-      kwWords.forEach(w => {
-        if (w.length >= 3 && titleLower.includes(w)) score += 3;
+      if (img.source === 'wikipedia') score += 3;
+      // Boost images from the meaning-based search
+      if (img.searchTerm === primaryWikiTerm && primaryWikiTerm !== kwLower) score += 5;
+      // Keyword/meaning appears in filename
+      allTerms.forEach(term => {
+        const words = term.split(/\s+/);
+        words.forEach(w => {
+          if (w.length >= 3 && titleLower.includes(w)) score += 2;
+        });
       });
       // Exact keyword match in title
-      if (titleLower.includes(kwLower)) score += 4;
+      if (titleLower.includes(kwLower)) score += 3;
+      if (englishMeaning && titleLower.includes(englishMeaning)) score += 4;
+      // Penalize images that contain unrelated animal/species names for adjective searches
+      const animalTerms = ['duck', 'bird', 'fish', 'snake', 'frog', 'lizard', 'beetle', 'moth', 'butterfly', 'worm', 'spider'];
+      if (englishMeaning && !englishMeaning.match(/duck|bird|fish|snake|frog|lizard|beetle|moth|butterfly|worm|spider/)) {
+        animalTerms.forEach(a => {
+          if (titleLower.includes(a)) score -= 8;
+        });
+      }
       img.score = score;
     });
     allImages.sort((a, b) => b.score - a.score);
@@ -3955,11 +4116,12 @@ window.searchImagesForModal = async function() {
     // Take top results
     let images = allImages.slice(0, 12).map(img => img.url);
 
-    // Fallback: if not enough images, pad with LoremFlickr
+    // Fallback: if not enough images, pad with LoremFlickr using the meaning
     if (images.length < 6) {
+      const fallbackTerm = englishMeaning || kwLower;
       const needed = 6 - images.length;
       for (let i = 1; i <= needed; i++) {
-        images.push(`https://loremflickr.com/400/300/${encodeURIComponent(kwLower)}?random=${i}`);
+        images.push(`https://loremflickr.com/400/300/${encodeURIComponent(fallbackTerm)}?random=${i}`);
       }
     }
 
