@@ -151,6 +151,11 @@ function verifyToken(token) {
 
 // Authentication Middleware
 function authMiddleware(req, res, next) {
+  // Bypass authentication for non-API requests (like static HTML, CSS, JS files)
+  if (!req.path.startsWith('/api/')) {
+    return next();
+  }
+
   const authHeader = req.headers['authorization'];
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7);
@@ -169,7 +174,7 @@ function authMiddleware(req, res, next) {
     }
   }
   
-  // Bypass validation for public endpoints
+  // Bypass validation for public API endpoints
   const publicPaths = ['/api/status', '/api/auth/register', '/api/auth/login'];
   if (publicPaths.includes(req.path)) {
     return next();
