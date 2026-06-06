@@ -892,21 +892,23 @@ async function initHomeView() {
 }
 
 // Quick seed action
-document.getElementById('quick-seed-btn').addEventListener('click', async () => {
-  const btn = document.getElementById('quick-seed-btn');
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang nạp dữ liệu...';
-  try {
-    await seedDemoData();
-    alert("Nạp thành công thư mục 'human-con người' cùng 2 học phần mẫu (Leg, Arm)!");
-    initHomeView();
-  } catch(e) {
-    alert("Lỗi nạp dữ liệu mẫu");
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-bolt"></i> Nạp dữ liệu mẫu Con Người';
-  }
-});
+const quickSeedBtn = document.getElementById('quick-seed-btn');
+if (quickSeedBtn) {
+  quickSeedBtn.addEventListener('click', async () => {
+    quickSeedBtn.disabled = true;
+    quickSeedBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang nạp dữ liệu...';
+    try {
+      await seedDemoData();
+      alert("Nạp thành công thư mục 'human-con người' cùng 2 học phần mẫu (Leg, Arm)!");
+      initHomeView();
+    } catch(e) {
+      alert("Lỗi nạp dữ liệu mẫu");
+    } finally {
+      quickSeedBtn.disabled = false;
+      quickSeedBtn.innerHTML = '<i class="fas fa-bolt"></i> Nạp dữ liệu mẫu Con Người';
+    }
+  });
+}
 
 // ==========================================
 // 2. FOLDERS LIST VIEW
