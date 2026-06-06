@@ -1707,8 +1707,22 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'ArrowLeft') document.getElementById('prevBtn').click();
 });
 
-// Swipe Gesture logic
+// Swipe Gesture logic — left = chưa thuộc, right = đã thuộc
 let startX = 0, currentX = 0, isDragging = false;
+let swipeOverlay = null;
+
+function getOrCreateSwipeOverlay() {
+  if (!swipeOverlay) {
+    swipeOverlay = document.createElement('div');
+    swipeOverlay.className = 'swipe-label-overlay';
+    swipeOverlay.style.cssText = 'position:absolute;top:18px;padding:8px 22px;border-radius:12px;font-weight:700;font-size:1.1rem;letter-spacing:1px;opacity:0;transition:opacity 0.15s;z-index:10;pointer-events:none;text-transform:uppercase;';
+    const fc = document.getElementById('flashcard');
+    fc.style.position = 'relative';
+    fc.appendChild(swipeOverlay);
+  }
+  return swipeOverlay;
+}
+
 fcInner.addEventListener('pointerdown', (e) => {
   if (e.target.closest('.card-speak-btn') || e.target.closest('.card-star-btn')) {
     return;
@@ -1724,6 +1738,32 @@ fcInner.addEventListener('pointermove', (e) => {
   if (!isDragging) return;
   currentX = e.clientX - startX;
   fcInner.style.transform = `translateX(${currentX}px) rotate(${currentX / 16}deg) ${fcIsFlipped ? 'rotateY(180deg)' : ''}`;
+
+  // Show swipe direction label
+  const overlay = getOrCreateSwipeOverlay();
+  const threshold = 50;
+  if (currentX > threshold) {
+    overlay.innerText = '✓ Đã thuộc';
+    overlay.style.right = '18px';
+    overlay.style.left = 'auto';
+    overlay.style.background = 'rgba(34,197,94,0.85)';
+    overlay.style.color = '#fff';
+    overlay.style.border = '2px solid rgba(34,197,94,1)';
+    overlay.style.opacity = Math.min((currentX - threshold) / 60, 1);
+    fcInner.style.boxShadow = `0 0 ${Math.min(currentX / 3, 30)}px rgba(34,197,94,0.4)`;
+  } else if (currentX < -threshold) {
+    overlay.innerText = '✗ Chưa thuộc';
+    overlay.style.left = '18px';
+    overlay.style.right = 'auto';
+    overlay.style.background = 'rgba(239,68,68,0.85)';
+    overlay.style.color = '#fff';
+    overlay.style.border = '2px solid rgba(239,68,68,1)';
+    overlay.style.opacity = Math.min((Math.abs(currentX) - threshold) / 60, 1);
+    fcInner.style.boxShadow = `0 0 ${Math.min(Math.abs(currentX) / 3, 30)}px rgba(239,68,68,0.4)`;
+  } else {
+    overlay.style.opacity = '0';
+    fcInner.style.boxShadow = '';
+  }
 });
 
 function handlePointerEnd() {
@@ -1731,25 +1771,48 @@ function handlePointerEnd() {
   isDragging = false;
   fcInner.classList.remove('dragging');
   fcInner.style.transition = '';
+  fcInner.style.boxShadow = '';
+
+  // Hide overlay
+  const overlay = getOrCreateSwipeOverlay();
+  overlay.style.opacity = '0';
 
   const threshold = 100;
   if (Math.abs(currentX) > threshold) {
     if (currentX > 0) {
-      fcInner.style.transform = `translateX(200px) rotate(15deg) ${fcIsFlipped ? 'rotateY(180deg)' : ''}`;
+      // Swipe right → Đã thuộc (mastered)
+      fcInner.style.transform = `translateX(300px) rotate(20deg) ${fcIsFlipped ? 'rotateY(180deg)' : ''}`;
       fcInner.style.opacity = '0';
       setTimeout(() => {
+        fcCardStates[fcActiveIndex] = 1;
+        updateFCStatsUI();
         fcInner.style.transform = '';
         fcInner.style.opacity = '';
-        document.getElementById('prevBtn').click(); // Swipe right -> Go to previous card
-      }, 150);
+        // Move to next card
+        if (fcActiveIndex < currentStudyCards.length - 1) {
+          document.getElementById('nextBtn').click();
+        } else {
+          updateFCCard('none');
+        }
+        showToast('✓ Đã đánh dấu thuộc!', 'success');
+      }, 180);
     } else {
-      fcInner.style.transform = `translateX(-200px) rotate(-15deg) ${fcIsFlipped ? 'rotateY(180deg)' : ''}`;
+      // Swipe left → Chưa thuộc (not learned)
+      fcInner.style.transform = `translateX(-300px) rotate(-20deg) ${fcIsFlipped ? 'rotateY(180deg)' : ''}`;
       fcInner.style.opacity = '0';
       setTimeout(() => {
+        fcCardStates[fcActiveIndex] = -1;
+        updateFCStatsUI();
         fcInner.style.transform = '';
         fcInner.style.opacity = '';
-        document.getElementById('nextBtn').click(); // Swipe left -> Go to next card
-      }, 150);
+        // Move to next card
+        if (fcActiveIndex < currentStudyCards.length - 1) {
+          document.getElementById('nextBtn').click();
+        } else {
+          updateFCCard('none');
+        }
+        showToast('✗ Đã đánh dấu chưa thuộc', 'error');
+      }, 180);
     }
   } else {
     fcInner.style.transform = '';
