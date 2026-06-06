@@ -3,478 +3,1524 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Quizlet Spaced Repetition - Premium Personal Edition</title>
+  <title>TCTEnglish - Flashcard Spaced Repetition System</title>
+  
+  <!-- FontAwesome for Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
   <!-- Google Fonts: Inter & Outfit -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Inter', 'sans-serif'],
-            display: ['Outfit', 'sans-serif'],
-          }
-        }
-      }
-    }
-  </script>
-  <style>
-    /* Dark Mode Core Theme */
-    body {
-      background-color: #0a092d; /* Quizlet background */
-      color: #f6f7fb;
-    }
-    .quizlet-card {
-      background-color: #2e3856; /* Quizlet dark container color */
-      border: 1px solid #3c4257;
-    }
-    .quizlet-btn-primary {
-      background-color: #4257b2; /* Quizlet primary blue */
-      color: #ffffff;
-    }
-    .quizlet-btn-primary:hover {
-      background-color: #3b4cb0;
-    }
-    
-    /* 3D Flip Card Effect */
-    .card-perspective {
-      perspective: 1200px;
-    }
-    .card-inner {
-      transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-      transform-style: preserve-3d;
-    }
-    .card-flipped {
-      transform: rotateY(180deg);
-    }
-    .card-front, .card-back {
-      backface-visibility: hidden;
-      -webkit-backface-visibility: hidden;
-    }
-    .card-back {
-      transform: rotateY(180deg);
-    }
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Vanilla CSS Style -->
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    /* Inputs */
-    .quizlet-input {
-      background-color: #1a1b2f;
-      border: 1px solid #3c4257;
-      color: #ffffff;
-    }
-    .quizlet-input:focus {
-      border-color: #4257b2;
-      box-shadow: 0 0 0 2px rgba(66, 87, 178, 0.2);
-    }
-
-    /* Shake animation */
-    @keyframes shake {
-      0%, 100% { transform: translateX(0); }
-      20%, 60% { transform: translateX(-6px); }
-      40%, 80% { transform: translateX(6px); }
-    }
-    .animate-shake {
-      animation: shake 0.4s ease-in-out;
-    }
-    
-    /* Custom Scrollbar for sidebar */
-    ::-webkit-scrollbar {
-      width: 6px;
-    }
-    ::-webkit-scrollbar-track {
-      background: #0a092d;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #2e3856;
-      border-radius: 3px;
-    }
-  </style>
+  <!-- PWA Manifest & Meta -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#4255ff">
+  <meta name="description" content="Hệ thống học tập Flashcard SRS thông minh với thuật toán lặp lại ngắt quãng">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="TCTEnglish SRS">
 </head>
-<body class="min-h-screen flex font-sans selection:bg-[#4257b2]/40 selection:text-white">
+<body>
 
-  <!-- LEFT SIDEBAR -->
-  <aside class="w-64 fixed top-0 bottom-0 left-0 bg-[#0c0b24] border-r border-[#2e3856] flex flex-col p-5 z-20 transition-all duration-300">
-    <!-- Logo -->
-    <div class="mb-8 flex items-center gap-2">
-      <span class="text-xl font-bold font-display text-white flex items-center gap-1.5">
-        <span class="text-yellow-400 text-lg">✨</span> Quizlet <span class="text-[10px] px-1.5 py-0.5 rounded bg-[#4257b2] font-semibold text-white uppercase">SRS</span>
-      </span>
-    </div>
-
-    <!-- Core Navigation Links -->
-    <div class="space-y-1 mb-8">
-      <button id="menu-home-btn" class="w-full text-left px-3 py-2 rounded-xl text-sm font-bold bg-[#2e3856] text-white flex items-center gap-3 transition-all">
-        <span>🏠</span> Trang chủ
-      </button>
-      <button id="menu-library-btn" class="w-full text-left px-3 py-2 rounded-xl text-sm font-bold text-[#939bb4] hover:text-white flex items-center gap-3 transition-all">
-        <span>📚</span> Thư viện của bạn
-      </button>
-      <div class="px-3 py-2 text-[10px] font-bold text-[#5c6479] uppercase tracking-widest mt-4">Lối tắt học tập</div>
-      <button id="shortcut-flashcards-btn" disabled class="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-[#5c6479] cursor-not-allowed flex items-center gap-3 transition-all study-shortcut">
-        <span>🎴</span> Thẻ ghi nhớ
-      </button>
-      <button id="shortcut-match-btn" disabled class="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-[#5c6479] cursor-not-allowed flex items-center gap-3 transition-all study-shortcut">
-        <span>🎮</span> Trò chơi Ghép thẻ
-      </button>
-      <button id="shortcut-test-btn" disabled class="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-[#5c6479] cursor-not-allowed flex items-center gap-3 transition-all study-shortcut">
-        <span>📝</span> Bài kiểm tra
-      </button>
-    </div>
-
-    <!-- Folders List Section -->
-    <div class="flex-grow flex flex-col overflow-hidden">
-      <div class="flex justify-between items-center px-3 mb-2">
-        <span class="text-[10px] font-bold text-[#939bb4] uppercase tracking-widest">Thư mục lớn</span>
-        <button id="add-folder-btn" class="text-xs text-sky-400 hover:text-white font-bold transition-colors" title="Tạo thư mục lớn mới">+ Mới</button>
-      </div>
-      
-      <!-- Dynamic list of folders -->
-      <div id="folders-sidebar-list" class="flex-grow overflow-y-auto space-y-1 pr-1 text-sm text-[#939bb4]">
-        <div class="px-3 py-2 text-xs italic text-[#5c6479]">Chưa có thư mục...</div>
-      </div>
-    </div>
-
-    <!-- Streak indicator at bottom -->
-    <div class="mt-auto border-t border-[#2e3856] pt-4 flex items-center gap-3">
-      <span class="text-2xl text-amber-400">🔥</span>
-      <div>
-        <div class="text-[10px] text-[#939bb4] font-bold uppercase tracking-wider">Streak học</div>
-        <div class="text-xs font-bold text-white"><span id="sidebar-streak" class="text-amber-400">0</span> ngày liên tục</div>
-      </div>
-    </div>
-  </aside>
-
-  <!-- MAIN AREA (ml-64 to make space for sidebar) -->
-  <main class="ml-64 flex-grow p-8 min-h-screen flex flex-col space-y-8 overflow-x-hidden">
+  <div class="app-container">
     
-    <!-- LocalStorage fallback warning -->
-    <div id="firebase-warning" class="hidden bg-amber-950/40 border border-amber-500/50 p-4 rounded-xl text-amber-200">
-      <div class="flex items-center gap-2 text-sm font-semibold mb-1">
-        <span>⚠️</span> Chế độ Demo (Lưu trữ cục bộ)
+    <!-- LEFT SIDEBAR -->
+    <aside class="sidebar">
+      <!-- Logo -->
+      <div class="logo-section">
+        <span>✨ TCTEnglish</span>
+        <span class="logo-badge">SRS</span>
       </div>
-      <p class="text-xs text-[#939bb4]">
-        Bạn đang chạy thử nghiệm bằng bộ nhớ trình duyệt. Thay thế thông tin kết nối Firestore thực tế trong <code class="bg-[#1a1b2f] px-1 py-0.5 rounded font-mono text-white">app.js</code> để liên kết đám mây.
-      </p>
-    </div>
 
-    <!-- SECTION 1: HOME VIEW / GENERAL DASHBOARD -->
-    <section id="view-home" class="space-y-6">
-      <div class="flex justify-between items-center">
-        <div>
-          <h2 class="text-2xl font-bold font-display text-white">Chào mừng bạn quay lại!</h2>
-          <p class="text-xs text-[#939bb4] mt-1">Hãy chọn một thư mục lớn ở thanh bên hoặc khởi tạo dữ liệu để bắt đầu.</p>
+      <!-- Navigation Links -->
+      <nav class="nav-links">
+        <button id="menu-home-btn" class="nav-btn active">
+          <i class="fas fa-home sidebar-icon"></i> <span>Trang chủ</span>
+        </button>
+        <button id="menu-library-btn" class="nav-btn">
+          <i class="fas fa-folder-open sidebar-icon"></i> <span>Thư mục của bạn</span>
+        </button>
+        <button id="menu-analytics-btn" class="nav-btn">
+          <i class="fas fa-chart-bar sidebar-icon"></i> <span>Thống kê học tập</span>
+        </button>
+        
+        <div class="sidebar-divider"></div>
+        
+        <!-- Shortcuts (Activated when a set is loaded) -->
+        <div class="sidebar-header-row">
+          <span class="sidebar-title">Lối tắt học tập</span>
         </div>
-        <button id="quick-seed-btn" class="px-4 py-2 quizlet-btn-primary font-bold text-xs rounded-xl transition-all uppercase tracking-wider">
-          ⚡ Nạp dữ liệu mẫu bóng đá
+        <button id="shortcut-flashcards-btn" disabled class="nav-btn">
+          <i class="fas fa-clone sidebar-icon"></i> <span>Thẻ ghi nhớ</span>
+        </button>
+        <button id="shortcut-match-btn" disabled class="nav-btn">
+          <i class="fas fa-puzzle-piece sidebar-icon"></i> <span>Ghép thẻ</span>
+        </button>
+        <button id="shortcut-test-btn" disabled class="nav-btn">
+          <i class="fas fa-square-poll-horizontal sidebar-icon"></i> <span>Bài kiểm tra</span>
+        </button>
+      </nav>
+
+      <!-- Folders Header & List (Ẩn khỏi sidebar để chỉ hiển thị trong trang Thư mục của bạn) -->
+      <div style="display: none;">
+        <div class="sidebar-divider"></div>
+        <div class="sidebar-header-row">
+          <span class="sidebar-title">Thư mục lớn</span>
+          <button id="sidebar-add-folder-btn" class="sidebar-add-btn" title="Tạo thư mục lớn mới">
+            <i class="fas fa-plus"></i>
+          </button>
+        </div>
+        <div id="folders-sidebar-list" class="sidebar-folders-list">
+          <!-- Dynamic folders will render here -->
+          <div class="sidebar-folder-item" style="font-style: italic; opacity: 0.6;">Chưa có thư mục...</div>
+        </div>
+      </div>
+
+      <!-- Streak Widget -->
+      <div class="sidebar-streak-widget">
+        <div class="streak-icon">🔥</div>
+        <div class="streak-info">
+          <div class="streak-text-label">Streak học tập</div>
+          <div class="streak-text-value"><span id="sidebar-streak" class="streak-highlight">0</span> ngày liên tục</div>
+        </div>
+      </div>
+
+      <!-- Bottom sidebar tools -->
+      <div class="sidebar-bottom-tools">
+        <button id="tts-settings-btn" class="sidebar-tool-btn" title="Cài đặt phát âm">
+          <i class="fas fa-volume-up"></i> <span>Phát âm (TTS)</span>
+        </button>
+        <button id="backup-manager-btn" class="sidebar-tool-btn" title="Quản lý sao lưu">
+          <i class="fas fa-database"></i> <span>Sao lưu dữ liệu</span>
         </button>
       </div>
+    </aside>
 
-      <!-- Quick stats summary card -->
-      <div class="quizlet-card p-6 rounded-2xl">
-        <h3 class="text-xs font-bold text-[#939bb4] uppercase tracking-widest mb-4">Thống kê học tập cá nhân</h3>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div class="bg-[#1a1b2f] p-4 rounded-xl border border-[#3c4257]">
-            <span class="text-2xl">📁</span>
-            <div class="text-[10px] text-[#939bb4] font-bold uppercase tracking-wider mt-2">Tổng số Thư mục</div>
-            <div id="stat-folders" class="text-xl font-bold text-white mt-1">0</div>
-          </div>
-          <div class="bg-[#1a1b2f] p-4 rounded-xl border border-[#3c4257]">
-            <span class="text-2xl">📚</span>
-            <div class="text-[10px] text-[#939bb4] font-bold uppercase tracking-wider mt-2">Tổng số Học phần</div>
-            <div id="stat-sets" class="text-xl font-bold text-white mt-1">0</div>
-          </div>
-          <div class="bg-[#1a1b2f] p-4 rounded-xl border border-[#3c4257]">
-            <span class="text-2xl">🎴</span>
-            <div class="text-[10px] text-[#939bb4] font-bold uppercase tracking-wider mt-2">Tổng số Từ vựng</div>
-            <div id="stat-cards" class="text-xl font-bold text-white mt-1">0</div>
-          </div>
+    <!-- MAIN AREA -->
+    <main class="main-content">
+      
+      <!-- API Server Warning Banner -->
+      <div id="firebase-warning" class="warning-banner hidden">
+        <div class="warning-banner-title">
+          <i class="fas fa-exclamation-triangle"></i> Chế độ Demo (Lưu trữ cục bộ LocalStorage)
+        </div>
+        <div class="warning-banner-desc">
+          Bạn đang sử dụng bộ nhớ trình duyệt để lưu trữ dữ liệu. Hãy khởi chạy server cục bộ bằng file <code>server.ps1</code> để lưu dữ liệu vĩnh viễn trên máy tính.
         </div>
       </div>
-    </section>
 
-    <!-- SECTION 2: FOLDER DETAIL VIEW (Giống Ảnh 1 của bạn) -->
-    <section id="view-folder" class="hidden space-y-6">
-      <!-- Folder Header -->
-      <div class="flex justify-between items-start">
-        <div class="flex items-center gap-4">
-          <span class="text-5xl p-3 bg-[#1a1b2f] rounded-2xl border border-[#3c4257]">📁</span>
+      <!-- SECTION 1: HOME/DASHBOARD VIEW -->
+      <section id="view-home" class="view-section">
+        <div class="home-header">
           <div>
-            <h2 id="folder-title" class="text-3xl font-extrabold font-display text-white">Tên Thư Mục</h2>
-            <div class="flex gap-4 mt-2 text-xs text-[#939bb4] font-semibold">
-              <span>Học phần: <strong id="folder-set-count" class="text-white">0</strong></span>
-              <span>•</span>
-              <span>Tác giả: <strong class="text-white">bạn</strong></span>
+            <h1 class="home-title">Chào mừng bạn quay lại!</h1>
+            <p class="home-subtitle">Luyện tập từ vựng mỗi ngày để đạt hiệu quả ghi nhớ tốt nhất.</p>
+          </div>
+          <button id="quick-seed-btn" class="btn-seed">
+            <i class="fas fa-bolt"></i> Nạp dữ liệu mẫu Con Người
+          </button>
+        </div>
+
+        <!-- Resume Session Banner -->
+        <div id="resume-session-banner" class="resume-session-banner hidden">
+          <div class="resume-banner-content">
+            <span class="resume-banner-icon">💡</span>
+            <div class="resume-banner-text">
+              Bạn có một phiên học dở dang ở học phần <strong id="resume-set-name">...</strong> (<span id="resume-mode-text">...</span> - thẻ <span id="resume-card-index">...</span>).
+            </div>
+          </div>
+          <div class="resume-banner-actions">
+            <button onclick="resumeStudySession()" class="btn-resume-action confirm">Học tiếp</button>
+            <button onclick="discardResumeSession()" class="btn-resume-action discard">Bỏ qua</button>
+          </div>
+        </div>
+
+        <!-- Today's Review & Smart Review Widget -->
+        <div class="home-action-row">
+          <div id="today-review-box" class="today-review-panel" style="flex:2;">
+            <div class="today-review-content">
+              <div class="today-review-info">
+                <span class="today-review-fire">🔥</span>
+                <div>
+                  <h3 class="today-review-title">Học tập &amp; Ôn tập hôm nay</h3>
+                  <p class="today-review-subtitle" id="today-review-count-text">Bạn có <strong id="today-due-count">0</strong> từ vựng đến hạn ôn tập.</p>
+                </div>
+              </div>
+              <button id="start-review-btn" class="btn-start-review" disabled>
+                <i class="fas fa-play"></i> Ôn tập ngay
+              </button>
+            </div>
+          </div>
+
+          <!-- Daily Goal Widget -->
+          <div class="daily-goal-card">
+            <div class="daily-goal-header">
+              <div class="daily-goal-title">🎯 Mục tiêu hôm nay</div>
+              <button id="smart-review-quick-btn" class="smart-review-btn" title="Ôn tập thông minh">
+                <i class="fas fa-brain"></i> SRS
+              </button>
+            </div>
+            <div class="daily-goal-progress-area">
+              <div class="daily-goal-ring">
+                <svg viewBox="0 0 56 56">
+                  <circle cx="28" cy="28" r="22" fill="none" stroke="var(--border-color)" stroke-width="5"/>
+                  <circle id="goal-ring-fill" cx="28" cy="28" r="22" fill="none" stroke="var(--primary)" stroke-width="5"
+                    stroke-dasharray="138.2" stroke-dashoffset="138.2" stroke-linecap="round"
+                    transform="rotate(-90 28 28)" style="transition:stroke-dashoffset 0.6s ease;"/>
+                </svg>
+                <div class="daily-goal-ring-text">
+                  <span id="goal-today-count">0</span>
+                  <span class="daily-goal-ring-sub">/ <span id="goal-target">20</span></span>
+                </div>
+              </div>
+              <div class="daily-goal-details">
+                <div id="daily-streak-display" class="streak-pill"><i class="fas fa-fire"></i> <span id="streak-days">0</span> ngày</div>
+                <button id="set-goal-btn" class="btn-set-goal"><i class="fas fa-cog"></i> Đặt mục tiêu</button>
+              </div>
             </div>
           </div>
         </div>
 
-        <div class="flex gap-2">
-          <button id="folder-delete-btn" class="px-3 py-2 bg-red-950/40 border border-red-500/40 hover:bg-red-950/80 text-red-400 font-bold text-xs rounded-xl transition-all uppercase tracking-wider">
-            🗑️ Xóa thư mục
+        <!-- Keyboard shortcut hint -->
+        <div style="display:flex; justify-content:flex-end; margin-bottom:4px;">
+          <button onclick="openShortcutsModal()" style="background:none; border:none; color:var(--text-sub); font-size:0.75rem; cursor:pointer; display:flex; align-items:center; gap:5px;">
+            <kbd style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:4px; padding:1px 5px; font-size:0.72rem;">?</kbd>
+            Xem phím tắt
           </button>
         </div>
-      </div>
 
-      <!-- Action Area for Folder sets -->
-      <div class="flex flex-col md:flex-row justify-between items-center gap-4 border-t border-[#2e3856] pt-6">
-        <div class="flex items-center gap-2 bg-[#1a1b2f] border border-[#3c4257] px-4 py-2 rounded-xl w-full md:w-80">
-          <span>🔍</span>
-          <input type="text" id="search-sets-input" placeholder="Tìm kiếm học phần trong thư mục này..." class="bg-transparent border-none outline-none text-xs text-white placeholder-[#939bb4] w-full">
+        <!-- Global statistics -->
+        <div class="stats-container">
+          <div class="stats-title-row">Thống kê học tập cá nhân</div>
+          <div class="stats-grid-row">
+            <div class="stat-box">
+              <span class="stat-box-icon">📁</span>
+              <div>
+                <div class="stat-box-label">Thư mục lớn</div>
+                <div id="stat-folders" class="stat-box-value">0</div>
+              </div>
+            </div>
+            <div class="stat-box">
+              <span class="stat-box-icon">📚</span>
+              <div>
+                <div class="stat-box-label">Học phần con</div>
+                <div id="stat-sets" class="stat-box-value">0</div>
+              </div>
+            </div>
+            <div class="stat-box">
+              <span class="stat-box-icon">🎴</span>
+              <div>
+                <div class="stat-box-label">Từ vựng</div>
+                <div id="stat-cards" class="stat-box-value">0</div>
+              </div>
+            </div>
+          </div>
         </div>
+
+        <!-- Global SRS progress -->
+        <div class="global-progress-card">
+          <div class="global-progress-header">
+            <h3 class="global-progress-title">Tiến độ ghi nhớ toàn cục</h3>
+            <span id="total-cards-label" class="global-progress-count">0 từ vựng</span>
+          </div>
+          <div class="global-progress-bar-wrapper">
+            <div id="progress-mastered" class="progress-segment mastered" style="width: 0%;"></div>
+            <div id="progress-learning" class="progress-segment learning" style="width: 0%;"></div>
+            <div id="progress-new" class="progress-segment unlearned" style="width: 100%;"></div>
+          </div>
+          <div class="progress-legend">
+            <div class="legend-item">
+              <span class="legend-dot mastered"></span>
+              <div class="legend-info">
+                <span class="legend-dot-label" style="color: var(--success)">Đã thuộc (>= 3 lần)</span>
+                <span id="count-mastered" class="legend-value">0</span>
+              </div>
+            </div>
+            <div class="legend-item">
+              <span class="legend-dot learning"></span>
+              <div class="legend-info">
+                <span class="legend-dot-label" style="color: var(--danger)">Đang học (1-2 lần)</span>
+                <span id="count-learning" class="legend-value">0</span>
+              </div>
+            </div>
+            <div class="legend-item">
+              <span class="legend-dot unlearned"></span>
+              <div class="legend-info">
+                <span class="legend-dot-label" style="color: var(--text-sub)">Chưa ôn tập</span>
+                <span id="count-new" class="legend-value">0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="charts-row">
+          <div class="chart-card">
+            <h4 class="chart-title"><i class="fas fa-chart-line"></i> Dự báo ôn tập (7 ngày tới)</h4>
+            <div class="chart-body">
+              <canvas id="forecastChart"></canvas>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h4 class="chart-title"><i class="fas fa-chart-pie"></i> Phân bổ trạng thái học</h4>
+            <div class="chart-body">
+              <canvas id="retentionChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 2: FOLDER LIST VIEW -->
+      <section id="view-folders" class="view-section hidden">
+        <div class="folder-header-row">
+          <h2 class="folder-title-main">Thư mục của bạn</h2>
+          <button id="new-folder-btn-page" class="btn-create-folder-main">
+            <i class="fas fa-plus"></i> Tạo thư mục mới
+          </button>
+        </div>
+
+        <!-- Grid of active folders -->
+        <div id="folders-grid" class="folders-grid">
+          <!-- Dynamic folders card -->
+        </div>
+
+        <!-- Saved folders section -->
+        <div class="folder-header-row" style="margin-top: 16px;">
+          <h2 class="folder-title-main">Thư mục đã lưu từ cộng đồng</h2>
+        </div>
+        <div id="saved-folders-grid" class="folders-grid">
+          <div class="empty-state" style="grid-column: 1/-1; padding: 40px 20px;">
+            <div class="empty-state-icon"><i class="fas fa-bookmark"></i></div>
+            <p class="empty-state-title">Thư mục đã lưu trống</p>
+            <p class="empty-state-desc">Bạn có thể lưu trữ các thư mục ôn tập hữu ích từ cộng đồng để ôn tập tại đây.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 3: FOLDER DETAIL VIEW -->
+      <section id="view-folder" class="view-section hidden">
+        <div class="back-btn-row">
+          <a id="folder-back-link" class="back-link">
+            <i class="fas fa-arrow-left"></i> <span>Quay lại thư viện</span>
+          </a>
+        </div>
+
+        <div class="folder-detail-header">
+          <div class="folder-detail-info">
+            <div class="folder-large-icon-box">
+              <i class="fas fa-folder"></i>
+            </div>
+            <div>
+              <span class="folder-detail-label">Thư mục lớn</span>
+              <h1 id="folder-title" class="folder-detail-title">Tên Thư Mục</h1>
+              <p class="folder-detail-creator">Tạo bởi <strong>bạn</strong></p>
+            </div>
+          </div>
+
+          <div class="dropdown-container">
+            <button id="btn-folder-more" class="btn-action-more">
+              <i class="fas fa-ellipsis-h"></i>
+            </button>
+            <div id="folder-dropdown-menu" class="dropdown-pane">
+              <button id="folder-rename-action" class="dropdown-item">
+                <i class="fas fa-pen"></i> Đổi tên thư mục
+              </button>
+              <button id="folder-delete-action" class="dropdown-item text-danger">
+                <i class="fas fa-trash"></i> Xóa thư mục
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="folder-tabs-centered">
+          <button class="tab-link active">Tất cả học phần</button>
+        </div>
+
+        <div class="folder-action-bar">
+          <button id="add-set-to-folder-btn" class="btn-add-set-new">
+            <i class="fas fa-plus-circle"></i> <span>Thêm học phần mới</span>
+          </button>
+        </div>
+
+        <!-- List of study sets (Học phần con) -->
+        <div id="folder-sets-list" class="sets-list-container">
+          <!-- Dynamic row cards will render here -->
+        </div>
+      </section>
+
+      <!-- SECTION 4: STUDY SET DETAIL VIEW (Main Study Flashcard View) -->
+      <section id="view-set-detail" class="view-section hidden">
         
-        <!-- Controls like "+ Thêm học phần" -->
-        <div class="flex gap-3 w-full md:w-auto">
-          <button id="folder-study-all-btn" class="flex-grow md:flex-grow-0 px-6 py-2.5 bg-[#4257b2]/20 border border-[#4257b2]/40 hover:bg-[#4257b2]/40 text-white font-bold text-xs rounded-xl transition-all uppercase tracking-wider">
-            📖 Học toàn bộ từ vựng
+        <!-- Study Nav Bar -->
+        <div class="study-nav-bar">
+          <div class="study-nav-left">
+            <a id="study-exit-btn" class="study-nav-exit-btn" title="Thoát">
+              <i class="fas fa-times"></i>
+            </a>
+          </div>
+          <div class="study-nav-center">
+            <h3 id="set-detail-title" class="study-nav-set-title">Tiêu đề học phần</h3>
+            <div class="study-nav-progress-row">
+              <select id="studyMode" class="study-mode-select">
+                <option value="flashcards">🎴 Học Flashcard</option>
+                <option value="write">✍️ Viết từ (Write)</option>
+                <option value="match">🧠 Ghép thẻ (Match)</option>
+                <option value="quiz">🎮 Trắc nghiệm (Quiz)</option>
+              </select>
+              <div class="study-nav-progress-bar-bg">
+                <div id="progress-fill" class="study-nav-progress-bar-fill"></div>
+              </div>
+              <div class="study-nav-progress-text">
+                <span id="current-index">1</span> / <strong id="total-set-cards">0</strong>
+              </div>
+            </div>
+          </div>
+          <div class="study-nav-right">
+            <button id="darkToggle" class="study-nav-tool-btn" title="Chế độ tối">🌙</button>
+            <button id="autoplayBtn" class="study-nav-tool-btn" title="Tự động chạy">▶️</button>
+            <button id="shuffleBtn" class="study-nav-tool-btn" title="Trộn thẻ">🔀</button>
+            <button id="pomodoroBtn" class="study-nav-tool-btn" title="Đồng hồ tập trung Pomodoro">
+              <i class="fas fa-stopwatch"></i>
+            </button>
+            <button id="shortcutHelpBtn" class="study-nav-tool-btn" title="Hướng dẫn phím tắt">
+              <i class="fas fa-keyboard"></i>
+            </button>
+            <button id="fullscreenBtn" class="study-nav-tool-btn" title="Toàn màn hình">
+              <i class="fas fa-expand"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Dashboard Stats inside Study View -->
+        <div class="study-stats-grid">
+          <div class="study-stat-card mastered" data-state="1">
+            <div class="study-stat-top">
+              <div class="study-stat-icon-wrapper"><i class="fas fa-check-circle"></i></div>
+              <div class="study-stat-info">
+                <span id="statKnown" class="study-stat-count">0</span>
+                <span class="study-stat-label">Đã thuộc</span>
+              </div>
+            </div>
+            <div class="study-stat-progress-bar">
+              <div id="pb-known" class="study-stat-progress-fill"></div>
+            </div>
+          </div>
+          
+          <div class="study-stat-card learning" data-state="-1">
+            <div class="study-stat-top">
+              <div class="study-stat-icon-wrapper"><i class="fas fa-clock"></i></div>
+              <div class="study-stat-info">
+                <span id="statLearning" class="study-stat-count">0</span>
+                <span class="study-stat-label">Chưa thuộc</span>
+              </div>
+            </div>
+            <div class="study-stat-progress-bar">
+              <div id="pb-learning" class="study-stat-progress-fill"></div>
+            </div>
+          </div>
+
+          <div class="study-stat-card unlearned" data-state="0">
+            <div class="study-stat-top">
+              <div class="study-stat-icon-wrapper"><i class="fas fa-layer-group"></i></div>
+              <div class="study-stat-info">
+                <span id="statUnknown" class="study-stat-count">0</span>
+                <span class="study-stat-label">Chưa học</span>
+              </div>
+            </div>
+            <div class="study-stat-progress-bar">
+              <div id="pb-unknown" class="study-stat-progress-fill"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subview 4.1: Flashcards Panel -->
+        <div id="subview-flashcards" class="view-section">
+          <!-- Study Mode Selection Banner -->
+          <div id="study-select-banner" class="study-selection-banner">
+            <div class="study-selection-text">
+              Bạn muốn bắt đầu học như thế nào? (Học phần này có <strong id="set-due-count">0</strong> từ đến hạn ôn tập)
+            </div>
+            <div class="study-selection-buttons">
+              <button id="btn-study-due" class="btn-study-select due" disabled>Chỉ ôn thẻ đến hạn</button>
+              <button id="btn-study-all" class="btn-study-select all">Học tất cả các thẻ</button>
+            </div>
+          </div>
+
+          <!-- Main Flashcard stack -->
+          <div class="flashcard-container">
+            <div id="flashcard" class="flashcard-inner">
+              
+              <!-- Front Face -->
+              <div class="card-face card-front">
+                <span class="card-tag">Thuật ngữ</span>
+                <div class="card-top-actions">
+                  <button class="card-star-btn" onclick="event.stopPropagation(); toggleActiveCardStar();" title="Đánh dấu thẻ">
+                    <i class="far fa-star"></i>
+                  </button>
+                  <button class="card-speak-btn" onclick="event.stopPropagation(); speakWord('front');">
+                    <i class="fas fa-volume-up"></i>
+                  </button>
+                </div>
+                <div id="front-text" class="card-text">English Word</div>
+                <div class="card-flip-prompt">Nhấp vào thẻ hoặc bấm SPACE để lật</div>
+              </div>
+
+              <!-- Back Face -->
+              <div class="card-face card-back">
+                <span class="card-tag">Định nghĩa</span>
+                <div class="card-top-actions">
+                  <button class="card-star-btn" onclick="event.stopPropagation(); toggleActiveCardStar();" title="Đánh dấu thẻ">
+                    <i class="far fa-star"></i>
+                  </button>
+                  <button class="card-speak-btn" onclick="event.stopPropagation(); speakWord('back');">
+                    <i class="fas fa-volume-up"></i>
+                  </button>
+                </div>
+                <img id="card-image" class="card-img" style="display: none;" alt="" />
+                <div id="back-text" class="card-text">Vietnamese Meaning</div>
+                <div class="card-back-spec-pill">
+                  <span>EF: <strong id="fc-ef-val">2.5</strong></span>
+                  <span>•</span>
+                  <span>Lặp lại: <strong id="fc-rep-val">0</strong></span>
+                  <span>•</span>
+                  <span>Giãn cách: <strong id="fc-interval-val">0</strong> ngày</span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Learning rating action buttons (4 levels, hidden by default until card flipped) -->
+          <div class="learning-actions-row hidden" id="rating-actions">
+            <button class="btn-status-action btn-again" onclick="markCardSRS(1)">
+              <span class="action-btn-shortcut">1</span> <i class="fas fa-redo"></i> Quên (Again)
+            </button>
+            <button class="btn-status-action btn-hard" onclick="markCardSRS(3)">
+              <span class="action-btn-shortcut">2</span> <i class="fas fa-circle-notch"></i> Khó (Hard)
+            </button>
+            <button class="btn-status-action btn-good" onclick="markCardSRS(4)">
+              <span class="action-btn-shortcut">3</span> <i class="fas fa-check-circle"></i> Tốt (Good)
+            </button>
+            <button class="btn-status-action btn-easy" onclick="markCardSRS(5)">
+              <span class="action-btn-shortcut">4</span> <i class="fas fa-star"></i> Dễ (Easy)
+            </button>
+          </div>
+
+          <!-- Study Navigation Controls -->
+          <div class="study-card-controls">
+            <button id="prevBtn" class="btn-control-arrow" title="Thẻ trước">
+              <i class="fas fa-chevron-left"></i>
+            </button>
+            
+            <div class="flip-btn-wrapper">
+              <button id="flipBtn" class="btn-control-flip" title="Lật thẻ">
+                <i class="fas fa-sync-alt"></i>
+              </button>
+              <div class="keyboard-shortcut-badge">SPACE</div>
+            </div>
+            
+            <button id="nextBtn" class="btn-control-arrow" title="Thẻ sau">
+              <i class="fas fa-chevron-right"></i>
+            </button>
+          </div>
+
+          <!-- End screen overlay -->
+          <div id="end-screen" class="end-screen-container" style="display: none;">
+            <div class="end-screen-card">
+              <div class="end-screen-icon">🎉</div>
+              <h2 class="end-screen-title">Chúc mừng bạn đã ôn tập xong!</h2>
+              <p class="end-screen-desc">Kết quả học tập của bạn:</p>
+              
+              <div class="end-screen-stats-grid">
+                <div class="end-stat-box mastered">
+                  <span id="endKnown" class="end-stat-box-value">0</span>
+                  <span class="end-stat-box-label">Đã thuộc</span>
+                </div>
+                <div class="end-stat-box learning">
+                  <span id="endLearning" class="end-stat-box-value">0</span>
+                  <span class="end-stat-box-label">Chưa thuộc</span>
+                </div>
+                <div class="end-stat-box unlearned">
+                  <span id="endUnknown" class="end-stat-box-value">0</span>
+                  <span class="end-stat-box-label">Chưa học</span>
+                </div>
+              </div>
+
+              <div class="end-screen-actions">
+                <button class="btn-restart-study" onclick="restartStudySession()">
+                  <i class="fas fa-redo"></i> Học lại từ đầu
+                </button>
+                <button id="end-exit-btn" class="btn-exit-to-folder">
+                  <i class="fas fa-arrow-left"></i> Quay lại thư mục
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Term list below -->
+          <div class="word-list-panel">
+            <div class="word-list-header-row">
+              <h3 class="word-list-title">Danh sách từ trong học phần</h3>
+              <div style="display:flex; gap:10px;">
+                <button id="btn-print-set" class="btn-edit-set-inline" style="background:#23b26d; color:white; border-color:#23b26d;" onclick="openPrintModal()">
+                  <i class="fas fa-print"></i> In / Xuất PDF
+                </button>
+                <button id="btn-edit-set-inline" class="btn-edit-set-inline">
+                  <i class="fas fa-pen"></i> Chỉnh sửa
+                </button>
+              </div>
+            </div>
+
+            <!-- Search, Filter & Sort Toolbar -->
+            <div class="word-list-toolbar">
+              <div class="toolbar-search-wrapper">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" id="terms-search-input" placeholder="Tìm kiếm thuật ngữ hoặc định nghĩa...">
+              </div>
+              <div class="toolbar-select-group">
+                <select id="terms-filter-select" class="toolbar-select">
+                  <option value="all">Lọc: Tất cả</option>
+                  <option value="starred">Lọc: Đã đánh dấu ⭐</option>
+                  <option value="due">Lọc: Đến hạn ôn</option>
+                  <option value="mastered">Lọc: Đã thuộc</option>
+                  <option value="learning">Lọc: Đang học</option>
+                  <option value="new">Lọc: Chưa học</option>
+                </select>
+                <select id="terms-sort-select" class="toolbar-select">
+                  <option value="index">Xếp: Mặc định</option>
+                  <option value="az">Xếp: Thuật ngữ A-Z</option>
+                  <option value="za">Xếp: Thuật ngữ Z-A</option>
+                  <option value="hardest">Xếp: Khó nhất (EF thấp)</option>
+                  <option value="easiest">Xếp: Dễ nhất (EF cao)</option>
+                  <option value="progress">Xếp: Lượt học nhiều nhất</option>
+                </select>
+              </div>
+            </div>
+            <div id="set-terms-list" class="word-items-list">
+              <!-- Dynamic terms list -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Subview 4.2: Matching Game Mode -->
+        <div id="subview-match" class="view-section hidden">
+          <div class="matching-wrapper">
+            <!-- Game navbar info -->
+            <div class="matching-navbar">
+              <button id="matching-back-btn" class="study-nav-exit-btn" title="Quay lại">
+                <i class="fas fa-arrow-left"></i>
+              </button>
+              <div style="flex: 1;">
+                <h1 id="match-title" class="matching-game-title">Trò chơi ghép thẻ</h1>
+                <div class="matching-game-progress-row">
+                  <div class="matching-progress-bg">
+                    <div id="matchingProgressFill" class="matching-progress-fill"></div>
+                  </div>
+                  <span id="matchingProgressText" class="matching-progress-text">0/0</span>
+                </div>
+              </div>
+              <div style="display: flex; gap: 16px; font-weight: 700; font-size: 0.9rem;">
+                <div>⏱️ Thời gian: <span id="m-timer" style="color: var(--primary);">0.0</span>s</div>
+                <div>🏆 Kỷ lục: <span id="m-highscore" style="color: var(--warning);">0.0</span>s</div>
+              </div>
+            </div>
+
+            <!-- Start screen -->
+            <div id="m-start-screen" class="end-screen-card" style="margin: 0 auto; max-width: 480px;">
+              <div class="end-screen-icon">🔀</div>
+              <h3 class="end-screen-title" style="font-size: 1.25rem;">Bắt đầu ghép thẻ</h3>
+              <p class="end-screen-desc">Ghép các thuật ngữ và định nghĩa tương ứng để triệt tiêu chúng nhanh nhất có thể.</p>
+              <button id="m-start-btn" class="btn-restart-study" style="background: var(--primary);">Bắt đầu chơi</button>
+            </div>
+
+            <!-- Main game arena -->
+            <div id="m-arena" class="matching-main-arena hidden">
+              <div id="matchingGrid" class="matching-grid"></div>
+              
+              <div class="matching-controls-bar">
+                <button id="matchingShuffleBtn" class="btn-matching-control">
+                  <i class="fas fa-random"></i> Trộn lại
+                </button>
+                <button id="matchingFinishBtn" class="btn-matching-control btn-finish-game">
+                  <i class="fas fa-flag-checkered"></i> Kết thúc sớm
+                </button>
+              </div>
+              
+              <div id="matchingFeedback" class="feedback-bar" style="display:none;"></div>
+            </div>
+
+            <!-- Finish screen -->
+            <div id="m-finish-screen" class="matching-result-card hidden">
+              <div class="matching-result-icon">🏆</div>
+              <h2 class="matching-result-title">Hoàn thành ghép cặp!</h2>
+              <p style="color: var(--text-sub);">Dưới đây là kết quả của bạn:</p>
+              
+              <div class="matching-result-stats-row">
+                <div class="matching-stat-box correct">
+                  <div class="matching-stat-icon-circle"><i class="fas fa-check"></i></div>
+                  <div class="matching-stat-info">
+                    <span class="matching-stat-label">Ghép đúng</span>
+                    <span id="m-stat-correct" class="matching-stat-value">0</span>
+                  </div>
+                </div>
+                <div class="matching-stat-box incorrect">
+                  <div class="matching-stat-icon-circle"><i class="fas fa-times"></i></div>
+                  <div class="matching-stat-info">
+                    <span class="matching-stat-label">Ghép sai</span>
+                    <span id="m-stat-incorrect" class="matching-stat-value">0</span>
+                  </div>
+                </div>
+                <div class="matching-stat-box time">
+                  <div class="matching-stat-icon-circle"><i class="fas fa-stopwatch"></i></div>
+                  <div class="matching-stat-info">
+                    <span class="matching-stat-label">Thời gian</span>
+                    <span id="m-stat-time" class="matching-stat-value">0s</span>
+                  </div>
+                </div>
+                <div class="matching-stat-box accuracy">
+                  <div class="matching-stat-icon-circle"><i class="fas fa-percentage"></i></div>
+                  <div class="matching-stat-info">
+                    <span class="matching-stat-label">Chính xác</span>
+                    <span id="m-stat-accuracy" class="matching-stat-value">0%</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="matching-result-actions">
+                <button id="m-replay-btn" class="btn-restart-study">Chơi lại</button>
+                <button id="m-exit-btn" class="btn-exit-to-folder">Quay lại học phần</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subview 4.3: Quiz Mode -->
+        <div id="subview-quiz" class="view-section hidden">
+          <div class="quiz-wrapper">
+            
+            <!-- Quiz Nav -->
+            <div class="quiz-header-card">
+              <button id="quiz-back-btn" class="study-nav-exit-btn" title="Quay lại">
+                <i class="fas fa-arrow-left"></i>
+              </button>
+              <div style="flex: 1;">
+                <h2 id="quiz-title" class="quiz-set-title">Bài trắc nghiệm</h2>
+                <div class="quiz-progress-bar-row">
+                  <div class="quiz-progress-bar-bg">
+                    <div id="quizProgressFill" class="quiz-progress-bar-fill"></div>
+                  </div>
+                  <span id="quizProgressText" class="quiz-progress-text">0/0</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quiz Card -->
+            <div id="quiz-card-panel" class="quiz-card">
+              <div class="quiz-term-row">
+                <span id="quizTermDisplay" class="quiz-term-text">Term</span>
+                <button id="speakQuizTermBtn" class="btn-speak" title="Phát âm từ">
+                  <i class="fas fa-volume-up"></i>
+                </button>
+              </div>
+              
+              <div class="options-area">
+                <div id="quizOptionsGrid" class="quiz-options-grid"></div>
+                <div class="action-buttons">
+                  <button id="quizSkipBtn" class="btn-skip-quiz">Bỏ qua câu này</button>
+                </div>
+              </div>
+
+              <div id="quizFeedback" class="quiz-feedback-box"></div>
+            </div>
+
+            <!-- Quiz Dashboard Stats Result -->
+            <div id="quiz-dashboard-panel" class="quiz-dashboard hidden">
+              <div class="quiz-dashboard-header">
+                <h2 class="quiz-dashboard-title">📊 Kết quả trắc nghiệm</h2>
+                <p class="quiz-dashboard-subtitle">Bạn đã hoàn thành bài kiểm tra trắc nghiệm!</p>
+              </div>
+
+              <div class="quiz-dashboard-stats-grid">
+                <div class="quiz-stat-card correct">
+                  <div class="quiz-stat-icon-wrapper"><i class="fas fa-check-circle"></i></div>
+                  <div class="quiz-stat-card-info">
+                    <span class="quiz-stat-card-label">Đúng</span>
+                    <span id="q-stat-correct" class="quiz-stat-card-value">0</span>
+                  </div>
+                </div>
+                <div class="quiz-stat-card incorrect">
+                  <div class="quiz-stat-icon-wrapper"><i class="fas fa-times-circle"></i></div>
+                  <div class="quiz-stat-card-info">
+                    <span class="quiz-stat-card-label">Sai</span>
+                    <span id="q-stat-incorrect" class="quiz-stat-card-value">0</span>
+                  </div>
+                </div>
+                <div class="quiz-stat-card skipped">
+                  <div class="quiz-stat-icon-wrapper"><i class="fas fa-forward"></i></div>
+                  <div class="quiz-stat-card-info">
+                    <span class="quiz-stat-card-label">Bỏ qua</span>
+                    <span id="q-stat-skipped" class="quiz-stat-card-value">0</span>
+                  </div>
+                </div>
+                <div class="quiz-stat-card time">
+                  <div class="quiz-stat-icon-wrapper"><i class="fas fa-clock"></i></div>
+                  <div class="quiz-stat-card-info">
+                    <span class="quiz-stat-card-label">Thời gian</span>
+                    <span id="q-stat-time" class="quiz-stat-card-value">0s</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="quiz-details-container">
+                <div class="quiz-accuracy-card">
+                  <h3 class="quiz-accuracy-title">Độ chính xác</h3>
+                  <div id="quizPieChart" class="accuracy-pie-chart" style="--acc-percentage: 0%; --acc-color: #23b26d;">
+                    <div class="pie-inner-circle">
+                      <span id="quizAccuracyValue">0%</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="quiz-table-card">
+                  <h3 class="quiz-table-title">Chi tiết từng câu</h3>
+                  <div class="quiz-breakdown-table-wrapper">
+                    <table class="quiz-table">
+                      <thead>
+                        <tr>
+                          <th>Thuật ngữ</th>
+                          <th>Trạng thái</th>
+                        </tr>
+                      </thead>
+                      <tbody id="quizBreakdownBody"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <div class="quiz-dashboard-actions">
+                <button id="quiz-exit-to-folder-btn" class="btn-exit-to-folder">
+                  <i class="fas fa-arrow-left"></i> Quay lại
+                </button>
+                <button id="quizRetryMistakesBtn" class="btn-retry-mistakes">
+                  <i class="fas fa-redo"></i> Luyện lại các câu sai
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Subview 4.4: Write Mode -->
+        <div id="subview-write" class="view-section hidden">
+          <div class="write-mode-wrapper">
+            <!-- Write mode header -->
+            <div class="write-mode-header">
+              <button id="write-back-btn" class="study-nav-exit-btn" title="Quay lại">
+                <i class="fas fa-arrow-left"></i>
+              </button>
+              <div style="flex:1;">
+                <h2 id="write-title" class="write-mode-title">✍️ Chế độ Viết từ</h2>
+                <div class="write-progress-bar-row">
+                  <div class="write-progress-bg"><div id="writeProgressFill" class="write-progress-fill"></div></div>
+                  <span id="writeProgressText" class="write-progress-text">0/0</span>
+                </div>
+              </div>
+              <div class="write-score-pill">
+                <span>✅ <strong id="write-correct-count">0</strong></span>
+                <span style="opacity:0.4;">|</span>
+                <span>❌ <strong id="write-wrong-count">0</strong></span>
+              </div>
+            </div>
+
+            <!-- Write card -->
+            <div id="write-card-panel" class="write-card">
+              <div class="write-card-prompt">
+                <div class="write-card-tag">Nhìn định nghĩa, viết từ tiếng Anh</div>
+                <div id="write-definition" class="write-definition-text">Definition here</div>
+                <div id="write-hint-text" class="write-hint-text"></div>
+              </div>
+
+              <div class="write-input-area">
+                <div class="write-input-wrapper">
+                  <input type="text" id="write-answer-input" class="write-answer-input"
+                    placeholder="Gõ từ tiếng Anh vào đây..." autocomplete="off" autocorrect="off" spellcheck="false">
+                  <button id="write-speak-btn" class="write-speak-btn" title="Nghe gợi ý">
+                    <i class="fas fa-volume-up"></i>
+                  </button>
+                </div>
+                <div id="write-char-hint" class="write-char-hint"></div>
+              </div>
+
+              <div id="write-feedback" class="write-feedback hidden">
+                <div id="write-feedback-icon"></div>
+                <div id="write-feedback-text"></div>
+                <div id="write-correct-answer" class="write-correct-answer"></div>
+              </div>
+
+              <div class="write-actions">
+                <button id="write-skip-btn" class="write-btn-skip"><i class="fas fa-forward"></i> Bỏ qua</button>
+                <button id="write-submit-btn" class="write-btn-submit"><i class="fas fa-check"></i> Kiểm tra</button>
+                <button id="write-next-btn" class="write-btn-next hidden"><i class="fas fa-arrow-right"></i> Tiếp theo</button>
+              </div>
+            </div>
+
+            <!-- Write dashboard (results) -->
+            <div id="write-dashboard" class="write-dashboard hidden">
+              <div class="write-result-icon">🎓</div>
+              <h2 class="write-result-title">Hoàn thành chế độ Viết!</h2>
+              <div class="write-result-stats">
+                <div class="write-stat-box correct">
+                  <span id="wd-correct" class="write-stat-val">0</span>
+                  <span class="write-stat-lbl">Đúng</span>
+                </div>
+                <div class="write-stat-box wrong">
+                  <span id="wd-wrong" class="write-stat-val">0</span>
+                  <span class="write-stat-lbl">Sai/Bỏ qua</span>
+                </div>
+                <div class="write-stat-box accuracy">
+                  <span id="wd-accuracy" class="write-stat-val">0%</span>
+                  <span class="write-stat-lbl">Chính xác</span>
+                </div>
+              </div>
+              <div class="write-mistakes-section" id="write-mistakes-list"></div>
+              <div class="write-result-actions">
+                <button id="write-retry-btn" class="btn-restart-study"><i class="fas fa-redo"></i> Làm lại</button>
+                <button id="write-retry-mistakes-btn" class="btn-retry-mistakes"><i class="fas fa-times-circle"></i> Luyện từ sai</button>
+                <button id="write-exit-btn" class="btn-exit-to-folder"><i class="fas fa-arrow-left"></i> Quay lại</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- SECTION 5: CREATE/EDIT STUDY SET VIEW -->
+      <section id="view-edit-set" class="view-section hidden">
+        <form id="setEditorForm" onsubmit="event.preventDefault();">
+          <input type="hidden" id="edit-set-id" value="">
+          
+          <div class="sticky-header">
+            <div class="sticky-header-container">
+              <h1 id="edit-view-title" class="editor-title">Tạo học phần mới</h1>
+              <button type="submit" id="edit-set-done-btn" class="btn-submit-set">Hoàn tất</button>
+            </div>
+          </div>
+
+          <div class="set-editor-wrapper">
+            
+            <!-- Name & Desc Card -->
+            <div class="editor-info-card">
+              <div class="input-floating-group">
+                <input type="text" id="set-title-input" required placeholder=" ">
+                <label for="set-title-input">Tiêu đề học phần (ví dụ: "Tiếng Anh con người")</label>
+              </div>
+              <div class="input-floating-group">
+                <textarea id="set-desc-input" rows="1" placeholder=" "></textarea>
+                <label for="set-desc-input">Thêm mô tả về học phần này...</label>
+              </div>
+            </div>
+
+            <!-- Premium tease -->
+            <div class="premium-teaser-card">
+              <div class="premium-teaser-content">
+                <i class="fas fa-crown premium-teaser-icon"></i>
+                <span class="premium-teaser-text">Gợi ý từ vựng tự động thông minh: Tự điền định nghĩa khi bạn gõ thuật ngữ tiếng Anh!</span>
+              </div>
+            </div>
+
+            <!-- Cards rows container -->
+            <div class="editor-terms-container">
+              <div class="sidebar-header-row" style="padding: 0;">
+                <span class="sidebar-title" style="font-size: 0.8rem;">Danh sách từ vựng</span>
+              </div>
+              
+              <!-- Cards dynamic row items -->
+              <div id="edit-cards-rows-list" style="display: flex; flex-direction: column; gap: 16px;">
+                <!-- Cards elements will spawn here -->
+              </div>
+              
+              <!-- Add Card Row dashed button -->
+              <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <button type="button" id="edit-add-row-btn" class="btn-editor-add-card" style="flex:1; min-width:200px;">
+                  <div class="editor-add-plus-icon-circle"><i class="fas fa-plus"></i></div>
+                  <span class="editor-add-btn-text">THÊM THẾ MỚI</span>
+                </button>
+                <button type="button" id="import-csv-btn" class="btn-editor-import" title="Nhập từ CSV / Text">
+                  <i class="fas fa-file-import"></i> Nhập CSV / Text
+                </button>
+                <button type="button" id="export-set-btn" class="btn-editor-export" title="Xuất học phần">
+                  <i class="fas fa-file-export"></i> Xuất
+                </button>
+              </div>
+            </div>
+
+            <!-- Bottom large submit button -->
+            <div class="editor-bottom-submit-row">
+              <button type="submit" id="edit-set-done-btn-large" class="btn-submit-set btn-large">Lưu học phần</button>
+            </div>
+
+          </div>
+        </form>
+      </section>
+
+      <!-- SECTION 6: ANALYTICS VIEW -->
+      <section id="view-analytics" class="view-section hidden">
+        <div class="analytics-header">
+          <button id="analytics-back-btn" class="back-link">
+            <i class="fas fa-arrow-left"></i> <span>Quay lại</span>
           </button>
-          <button id="add-set-to-folder-btn" class="flex-grow md:flex-grow-0 px-6 py-2.5 quizlet-btn-primary font-bold text-xs rounded-xl transition-all uppercase tracking-wider">
-            ➕ Thêm học phần con
+          <div>
+            <h1 class="analytics-title"><i class="fas fa-chart-bar"></i> Thống kê học tập</h1>
+            <p class="analytics-subtitle">Phân tích chi tiết quá trình ghi nhớ của bạn</p>
+          </div>
+          <button id="analytics-backup-btn" class="btn-create-backup">
+            <i class="fas fa-save"></i> Tạo bản sao lưu
           </button>
         </div>
-      </div>
 
-      <!-- List of study sets (Các mục con) -->
-      <div id="folder-sets-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- Dynamic sets inside folder -->
-      </div>
-    </section>
+        <!-- Summary cards -->
+        <div class="analytics-summary-row">
+          <div class="analytics-stat-card">
+            <div class="analytics-stat-icon" style="background: linear-gradient(135deg,#4255ff,#6c82ff);"><i class="fas fa-book-open"></i></div>
+            <div>
+              <div class="analytics-stat-val" id="an-total-sessions">0</div>
+              <div class="analytics-stat-lbl">Phiên học</div>
+            </div>
+          </div>
+          <div class="analytics-stat-card">
+            <div class="analytics-stat-icon" style="background: linear-gradient(135deg,#23b26d,#4cd964);"><i class="fas fa-check-double"></i></div>
+            <div>
+              <div class="analytics-stat-val" id="an-total-reviews">0</div>
+              <div class="analytics-stat-lbl">Lượt ôn tập</div>
+            </div>
+          </div>
+          <div class="analytics-stat-card">
+            <div class="analytics-stat-icon" style="background: linear-gradient(135deg,#ff9f43,#ffd32a);"><i class="fas fa-fire"></i></div>
+            <div>
+              <div class="analytics-stat-val" id="an-streak">0</div>
+              <div class="analytics-stat-lbl">Streak hiện tại</div>
+            </div>
+          </div>
+          <div class="analytics-stat-card">
+            <div class="analytics-stat-icon" style="background: linear-gradient(135deg,#ff6b6b,#ee5a24);"><i class="fas fa-percentage"></i></div>
+            <div>
+              <div class="analytics-stat-val" id="an-retention">0%</div>
+              <div class="analytics-stat-lbl">Tỉ lệ nhớ</div>
+            </div>
+          </div>
+        </div>
 
-    <!-- SECTION 3: STUDY SET DETAIL VIEW (Dashboard Học phần: chứa Flashcard 3D) -->
-    <section id="view-set-detail" class="hidden space-y-6">
+        <!-- Activity Heatmap -->
+        <div class="analytics-card">
+          <h3 class="analytics-card-title"><i class="fas fa-calendar-alt"></i> Hoạt động học tập (12 tuần qua)</h3>
+          <div id="activity-heatmap" class="activity-heatmap"></div>
+          <div class="heatmap-legend">
+            <span style="opacity:0.5;">Ít</span>
+            <div class="heatmap-legend-boxes">
+              <div class="heatmap-cell" style="background:var(--border-color);"></div>
+              <div class="heatmap-cell" style="background:#c6e48b;"></div>
+              <div class="heatmap-cell" style="background:#7bc96f;"></div>
+              <div class="heatmap-cell" style="background:#239a3b;"></div>
+              <div class="heatmap-cell" style="background:#196127;"></div>
+            </div>
+            <span style="opacity:0.5;">Nhiều</span>
+          </div>
+        </div>
+
+        <!-- Charts row -->
+        <div class="analytics-charts-row">
+          <div class="analytics-card flex-1">
+            <h3 class="analytics-card-title"><i class="fas fa-chart-line"></i> Dự báo ôn tập (30 ngày)</h3>
+            <div style="height:220px;"><canvas id="forecastChart30"></canvas></div>
+          </div>
+          <div class="analytics-card" style="min-width:280px;">
+            <h3 class="analytics-card-title"><i class="fas fa-chart-pie"></i> Phân bổ kết quả</h3>
+            <div style="height:220px;"><canvas id="ratingDistChart"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Hard words table -->
+        <div class="analytics-card">
+          <h3 class="analytics-card-title"><i class="fas fa-fire-alt"></i> Top 10 từ khó nhất (EF thấp nhất)</h3>
+          <div class="hard-words-table-wrapper">
+            <table class="hard-words-table">
+              <thead>
+                <tr><th>#</th><th>Từ vựng</th><th>Định nghĩa</th><th>Ease Factor</th><th>Số lần ôn</th><th>Hành động</th></tr>
+              </thead>
+              <tbody id="hard-words-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- ================= CREATE FOLDER MODAL ================= -->
+  <div id="folderModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header-row">
+        <h3 class="modal-title">Tạo thư mục lớn mới</h3>
+        <button class="btn-close-modal-x" onclick="closeFolderModal()">&times;</button>
+      </div>
       
-      <!-- Set Info Header -->
-      <div class="flex justify-between items-center">
-        <div>
-          <button id="back-to-folder-btn" class="text-xs text-[#939bb4] hover:text-white font-bold mb-2 flex items-center gap-1.5">
-            <span>◀</span> Trở về thư mục lớn
-          </button>
-          <h2 id="set-detail-title" class="text-2xl font-bold font-display text-white">Tiêu đề học phần</h2>
-          <p id="set-detail-desc" class="text-xs text-[#939bb4] mt-0.5">Mô tả học phần</p>
+      <input type="text" id="folderNameInput" class="modal-input" placeholder="Tên thư mục lớn (ví dụ: Con người)" required />
+      
+      <div class="modal-actions-row">
+        <button type="button" class="btn-modal-action btn-decline" onclick="closeFolderModal()">Hủy bỏ</button>
+        <button type="button" id="confirmFolderBtn" class="btn-modal-action btn-confirm">Xác nhận</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= RENAME FOLDER MODAL ================= -->
+  <div id="renameModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header-row">
+        <h3 class="modal-title">Đổi tên thư mục lớn</h3>
+        <button class="btn-close-modal-x" onclick="closeRenameFolderModal()">&times;</button>
+      </div>
+      
+      <input type="text" id="renameFolderNameInput" class="modal-input" placeholder="Tên thư mục lớn mới" required />
+      
+      <div class="modal-actions-row">
+        <button type="button" class="btn-modal-action btn-decline" onclick="closeRenameFolderModal()">Hủy</button>
+        <button type="button" id="confirmRenameFolderBtn" class="btn-modal-action btn-confirm">Lưu thay đổi</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= WORDS VIEW BY STATE MODAL ================= -->
+  <div id="wordsModal" class="modal-overlay">
+    <div class="modal-card stats-modal-card">
+      <div class="modal-header-row">
+        <h3 id="modalTitle" class="modal-title">Danh sách từ</h3>
+        <button class="btn-close-modal-x" onclick="closeWordsModal()">&times;</button>
+      </div>
+      
+      <div id="wordsList" class="stats-modal-words-list">
+        <!-- Dynamic listing will appear here -->
+      </div>
+      
+      <div class="modal-actions-row">
+        <button type="button" class="btn-modal-action btn-decline" onclick="closeWordsModal()">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= SHORTCUT HELP MODAL ================= -->
+  <div id="shortcutHelpModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header-row">
+        <h3 class="modal-title"><i class="fas fa-keyboard"></i> Hướng dẫn phím tắt</h3>
+        <button class="btn-close-modal-x" onclick="closeShortcutHelpModal()">&times;</button>
+      </div>
+      
+      <div class="shortcut-help-content" style="text-align: left; padding: 16px 0; display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 6px;">
+          <span><strong>Phím SPACE</strong></span>
+          <span>Lật mặt trước/sau của thẻ</span>
         </div>
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 6px;">
+          <span><strong>Phím mũi tên Trái/Phải</strong></span>
+          <span>Chuyển sang thẻ trước/sau</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 6px;">
+          <span><strong>Phím 1</strong></span>
+          <span>Đánh giá mức độ: <strong>Quên (Again)</strong></span>
+        </div>
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 6px;">
+          <span><strong>Phím 2</strong></span>
+          <span>Đánh giá mức độ: <strong>Khó (Hard)</strong></span>
+        </div>
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 6px;">
+          <span><strong>Phím 3</strong></span>
+          <span>Đánh giá mức độ: <strong>Tốt (Good)</strong></span>
+        </div>
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 6px;">
+          <span><strong>Phím 4</strong></span>
+          <span>Đánh giá mức độ: <strong>Dễ (Easy)</strong></span>
+        </div>
+      </div>
+      
+      <div class="modal-actions-row">
+        <button type="button" class="btn-modal-action btn-decline" onclick="closeShortcutHelpModal()">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= IMAGE SEARCH MODAL ================= -->
+  <div id="imageSearchModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 650px; width: 90%;">
+      <div class="modal-header-row">
+        <h3 class="modal-title"><i class="fas fa-image"></i> Gợi ý hình ảnh từ vựng</h3>
+        <button class="btn-close-modal-x" onclick="closeImageSearchModal()">&times;</button>
+      </div>
+      <div class="modal-body-content" style="padding: 20px;">
+        <div style="display:flex; gap:10px; margin-bottom:20px;">
+          <input type="text" id="img-search-keyword" placeholder="Nhập từ khóa tiếng Anh để tìm..." style="flex:1; padding:10px 14px; border:1px solid var(--border-color); border-radius:8px; background:var(--bg-input); color:var(--text-main); font-size:1rem; outline:none;" onkeydown="if(event.key==='Enter') searchImagesForModal()">
+          <button class="btn-start-review" onclick="searchImagesForModal()" style="padding:0 20px; font-size:0.9rem; margin-top:0; border-radius:8px; cursor:pointer;"><i class="fas fa-search"></i> Tìm ảnh</button>
+        </div>
+        <div id="image-search-results" class="image-search-grid">
+          <!-- Images will load here -->
+        </div>
+        <div style="margin-top:20px; text-align:center; border-top:1px dashed var(--border-color); padding-top:18px;">
+          <button class="btn-empty-action" onclick="triggerLocalImageUpload()" style="margin:0 auto; padding:8px 20px; border-radius:8px;">
+            <i class="fas fa-upload"></i> Hoặc tự tải ảnh lên từ máy tính
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= DICTIONARY LOOKUP MODAL ================= -->
+  <div id="dictModal" class="modal-overlay">
+    <div class="modal-card dict-modal-card">
+      <div class="modal-header-row">
+        <h3 class="modal-title"><i class="fas fa-book"></i> Tra từ điển</h3>
+        <button class="btn-close-modal-x" onclick="closeDictModal()">&times;</button>
+      </div>
+      <div id="dict-modal-content" class="dict-modal-body">
+        <div class="dict-loading"><i class="fas fa-spinner fa-spin"></i> Đang tra từ điển...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= TTS SETTINGS MODAL ================= -->
+  <div id="ttsModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header-row">
+        <h3 class="modal-title"><i class="fas fa-volume-up"></i> Cài đặt Phát âm (TTS)</h3>
+        <button class="btn-close-modal-x" onclick="closeTTSModal()">&times;</button>
+      </div>
+      <div style="padding: 8px 0; display:flex; flex-direction:column; gap:18px;">
+        <div class="tts-setting-row">
+          <label class="tts-setting-label">Bật phát âm</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="tts-enabled-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="tts-setting-row">
+          <label class="tts-setting-label">Tự động phát khi lật thẻ</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="tts-auto-flip-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="tts-setting-row">
+          <label class="tts-setting-label">Âm thanh phản hồi (Đúng/Sai/Lật)</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="audio-feedback-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="tts-setting-row">
+          <label class="tts-setting-label">Tốc độ đọc</label>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <input type="range" id="tts-rate-slider" min="0.5" max="2" step="0.1" value="0.9" style="flex:1;">
+            <span id="tts-rate-label" style="font-weight:700; min-width:32px;">0.9x</span>
+          </div>
+        </div>
+        <div class="tts-setting-row">
+          <label class="tts-setting-label">Giọng đọc tiếng Anh</label>
+          <select id="tts-voice-select" class="study-mode-select" style="flex:1;">
+            <option value="en-US">🇺🇸 English (US)</option>
+            <option value="en-GB">🇬🇧 English (UK)</option>
+            <option value="en-AU">🇦🇺 English (AU)</option>
+          </select>
+        </div>
+        <div style="padding:10px; background:var(--card-bg); border-radius:10px; border:1px solid var(--border-color);">
+          <div style="font-size:0.8rem; color:var(--text-sub); margin-bottom:8px;">Thử nghiệm phát âm:</div>
+          <div style="display:flex; gap:10px;">
+            <input type="text" id="tts-test-input" class="modal-input" placeholder="Nhập từ để thử phát âm..." style="margin:0; flex:1;">
+            <button onclick="testTTSPreview()" class="btn-modal-action btn-confirm" style="padding: 0 18px;">
+              <i class="fas fa-play"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions-row">
+        <button type="button" class="btn-modal-action btn-decline" onclick="closeTTSModal()">Đóng</button>
+        <button type="button" id="save-tts-btn" class="btn-modal-action btn-confirm">Lưu cài đặt</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= BACKUP MANAGER MODAL ================= -->
+  <div id="backupModal" class="modal-overlay">
+    <div class="modal-card" style="max-width:600px;">
+      <div class="modal-header-row">
+        <h3 class="modal-title"><i class="fas fa-database"></i> Quản lý sao lưu &amp; Đồng bộ</h3>
+        <button class="btn-close-modal-x" onclick="closeBackupModal()">&times;</button>
+      </div>
+      <div style="padding:8px 0; display:flex; flex-direction:column; gap:16px;">
         
-        <div class="flex gap-2">
-          <button id="set-edit-btn" class="px-4 py-2 bg-[#1a1b2f] border border-[#3c4257] hover:border-white text-white font-bold text-xs rounded-xl transition-all uppercase tracking-wider">
-            ✏️ Sửa học phần
-          </button>
-          <button id="set-delete-btn" class="px-4 py-2 bg-red-950/40 border border-red-500/40 hover:bg-red-950/80 text-red-400 font-bold text-xs rounded-xl transition-all uppercase tracking-wider">
-            🗑️ Xóa
-          </button>
+        <!-- Đồng bộ section -->
+        <div class="backup-section-box">
+          <div class="backup-section-title"><i class="fas fa-sync"></i> Đồng bộ LocalStorage &amp; Máy chủ API</div>
+          <p class="backup-section-desc">Đồng bộ tiến độ học tập và các học phần giữa thiết bị cục bộ (LocalStorage) và máy chủ lưu trữ (database.json).</p>
+          <div class="sync-actions-row">
+            <button onclick="syncLocalToApi()" class="btn-sync-action" id="btn-sync-to-server" title="Đẩy tất cả dữ liệu từ LocalStorage lên thay thế dữ liệu trên máy chủ API">
+              <i class="fas fa-upload"></i> Đẩy LocalStorage lên Server
+            </button>
+            <button onclick="syncApiToLocal()" class="btn-sync-action" id="btn-sync-to-local" title="Tải toàn bộ dữ liệu trên máy chủ API về lưu đè vào LocalStorage">
+              <i class="fas fa-download"></i> Tải Server về LocalStorage
+            </button>
+            <button onclick="mergeSync()" class="btn-sync-action" id="btn-sync-merge" title="Kết hợp dữ liệu từ cả hai nguồn để giữ nguyên tiến trình học của bạn">
+              <i class="fas fa-network-wired"></i> Trộn dữ liệu (Khuyên dùng)
+            </button>
+          </div>
         </div>
-      </div>
 
-      <!-- Quick Access Mode Selection Panel -->
-      <div class="grid grid-cols-3 gap-3">
-        <button id="mode-flashcards-btn" class="quizlet-card p-4 rounded-xl flex flex-col items-center justify-center text-center hover:border-white transition-all font-bold text-xs uppercase tracking-wider">
-          <span class="text-2xl mb-1">🎴</span> Thẻ ghi nhớ
-        </button>
-        <button id="mode-match-btn" class="quizlet-card p-4 rounded-xl flex flex-col items-center justify-center text-center hover:border-white transition-all font-bold text-xs uppercase tracking-wider">
-          <span class="text-2xl mb-1">🎮</span> Ghép thẻ
-        </button>
-        <button id="mode-test-btn" class="quizlet-card p-4 rounded-xl flex flex-col items-center justify-center text-center hover:border-white transition-all font-bold text-xs uppercase tracking-wider">
-          <span class="text-2xl mb-1">📝</span> Kiểm tra
-        </button>
-      </div>
+        <div class="backup-divider"></div>
 
-      <!-- Sub-view 3.1: Flashcards Study Panel -->
-      <div id="subview-flashcards" class="space-y-6 pt-4">
-        <div class="flex justify-between items-center text-xs font-bold text-[#939bb4] px-1 uppercase tracking-wider">
-          <span id="fc-count-label">Thẻ 1 / 10</span>
-          <label class="flex items-center gap-1.5 cursor-pointer hover:text-white select-none">
-            <input type="checkbox" id="autoplay-speak" class="accent-[#4257b2]">
-            <span>🔊 Tự động phát âm</span>
+        <!-- Sao lưu tự động section -->
+        <div class="backup-section-box">
+          <div class="backup-section-title"><i class="fas fa-history"></i> Bản sao lưu trên máy chủ</div>
+          <p class="backup-section-desc" style="margin-bottom: 8px;">Server tự động tạo backup mỗi lần khởi động. Tối đa 7 bản lưu gần nhất.</p>
+          <button id="create-backup-btn" class="btn-modal-action btn-confirm" style="margin-bottom:8px; width: fit-content; margin-top: 0;">
+            <i class="fas fa-plus"></i> Tạo bản sao lưu thủ công
+          </button>
+          <div id="backup-list-container">
+            <div style="text-align:center; padding:20px; opacity:0.5;"><i class="fas fa-spinner fa-spin"></i> Đang tải...</div>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-actions-row">
+        <button type="button" class="btn-modal-action btn-decline" onclick="closeBackupModal()">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= IMPORT CSV MODAL ================= -->
+  <div id="importModal" class="modal-overlay">
+    <div class="modal-card" style="max-width:640px;">
+      <div class="modal-header-row">
+        <h3 class="modal-title"><i class="fas fa-file-import"></i> Nhập từ CSV / Text</h3>
+        <button class="btn-close-modal-x" onclick="closeImportModal()">&times;</button>
+      </div>
+      <div style="padding: 8px 0; display:flex; flex-direction:column; gap:16px;">
+        <div class="import-format-selector" style="display:flex; gap:16px; flex-wrap:wrap;">
+          <label class="import-format-label">
+            <input type="radio" name="import-format" value="tab" checked> Phân tách bằng Tab (Excel/Sheets)
+          </label>
+          <label class="import-format-label">
+            <input type="radio" name="import-format" value="comma"> Dấu phẩy (,)
+          </label>
+          <label class="import-format-label">
+            <input type="radio" name="import-format" value="semicolon"> Dấu chấm phẩy (;)
           </label>
         </div>
 
-        <!-- Card Container -->
-        <div id="fc-perspective-box" class="w-full max-w-xl mx-auto card-perspective cursor-pointer">
-          <div id="fc-inner-box" class="card-inner quizlet-card rounded-2xl min-h-[300px] flex flex-col justify-between p-8 relative hover:border-[#4257b2] transition-colors duration-200 shadow-xl">
-            <!-- Front -->
-            <div class="card-front flex-grow flex flex-col justify-between items-center text-center">
-              <div class="w-full flex justify-between items-center">
-                <button id="fc-speak-front" class="p-2 bg-[#1a1b2f] hover:bg-[#4257b2] text-white rounded-xl transition-colors border border-[#3c4257]" title="Phát âm">🔊</button>
-                <button id="fc-hint" class="px-3 py-1.5 bg-[#1a1b2f] hover:bg-yellow-600/20 text-[#939bb4] hover:text-yellow-400 rounded-xl transition-colors text-[10px] font-bold uppercase tracking-wider border border-[#3c4257]" title="Gợi ý">💡 Gợi ý</button>
-              </div>
-              <div class="my-auto py-4">
-                <h2 id="fc-word-text" class="text-4xl font-extrabold text-white tracking-tight font-display select-none">English Word</h2>
-                <p id="fc-hint-text" class="hidden text-xs text-yellow-300 bg-yellow-950/40 border border-yellow-500/30 mt-4 px-3 py-1.5 rounded-lg max-w-xs animate-fade-in font-semibold"></p>
-              </div>
-              <div class="text-[10px] text-[#939bb4] font-bold uppercase tracking-wider">Lật thẻ</div>
-            </div>
-            <!-- Back -->
-            <div class="card-back absolute inset-0 p-8 flex flex-col justify-between bg-[#1f263f] rounded-2xl">
-              <div class="w-full flex justify-between items-center">
-                <button id="fc-speak-back" class="p-2 bg-[#1a1b2f] hover:bg-[#4257b2] text-white rounded-xl transition-colors border border-[#3c4257]" title="Phát âm">🔊</button>
-                <span class="text-[9px] uppercase font-bold text-[#939bb4] tracking-widest bg-[#1a1b2f] px-2 py-1 rounded border border-[#3c4257]">Đáp án</span>
-              </div>
-              <div class="my-auto py-2">
-                <h3 id="fc-meaning-text" class="text-2xl font-bold text-white font-display leading-relaxed select-none">Vietnamese Meaning</h3>
-              </div>
-              <div class="w-full flex justify-center gap-3 text-[9px] text-[#939bb4] bg-[#1a1b2f] py-2 px-3 rounded-xl border border-[#3c4257] font-semibold uppercase tracking-wider">
-                <span>EF: <strong id="fc-ef-val" class="text-white">2.5</strong></span>
-                <span>•</span>
-                <span>Lặp lại: <strong id="fc-rep-val" class="text-white">0</strong></span>
-                <span>•</span>
-                <span>Giãn cách: <strong id="fc-interval-val" class="text-white">0</strong> ngày</span>
-              </div>
-            </div>
-          </div>
+        <div style="position:relative;">
+          <textarea id="import-text-area" class="import-textarea"
+            placeholder="Dán dữ liệu vào đây...&#10;Hỗ trợ:&#10;- 2 cột: Từ vựng [phân tách] Định nghĩa&#10;- 3 cột: Từ vựng [phân tách] Loại từ [phân tách] Định nghĩa&#10;- 4 cột: Từ vựng [phân tách] Phiên âm [phân tách] Loại từ [phân tách] Định nghĩa&#10;&#10;Ví dụ 4 cột (dùng phím Tab):&#10;beautiful&#9;/ˈbjuːtɪfl/&#9;adj.&#9;xinh đẹp, lộng lẫy&#10;challenge&#9;/ˈtʃælɪndʒ/&#9;n.&#9;thử thách, thách thức"></textarea>
+          <label for="import-text-area" style="position:absolute; top:-10px; left:10px; font-size:0.72rem; font-weight:700; background:var(--bg-card); padding:0 6px; color:var(--text-sub); text-transform:uppercase;">Dữ liệu</label>
         </div>
 
-        <!-- Navigation Buttons -->
-        <div class="w-full max-w-xl mx-auto flex justify-between items-center gap-4 px-1">
-          <div class="flex gap-2">
-            <button id="fc-prev-btn" class="px-4 py-2 bg-[#1a1b2f] border border-[#3c4257] text-[#939bb4] hover:text-white hover:border-white rounded-xl transition-all font-bold text-xs uppercase tracking-wider">◀️</button>
-            <button id="fc-next-btn" class="px-4 py-2 bg-[#1a1b2f] border border-[#3c4257] text-[#939bb4] hover:text-white hover:border-white rounded-xl transition-all font-bold text-xs uppercase tracking-wider">▶️</button>
-          </div>
-          <div class="flex gap-2">
-            <button id="fc-shuffle-btn" class="px-3 py-2 bg-[#1a1b2f] border border-[#3c4257] text-[#939bb4] hover:text-white hover:border-white rounded-xl transition-all font-bold text-xs uppercase tracking-wider">🔀 Trộn</button>
-            <button id="fc-autoplay-btn" class="px-3 py-2 bg-[#1a1b2f] border border-[#3c4257] text-[#939bb4] hover:text-white hover:border-white rounded-xl transition-all font-bold text-xs uppercase tracking-wider flex items-center gap-1"><span>▶️</span> Chạy</button>
-          </div>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <label class="import-format-label" style="font-size:0.8rem; color:var(--text-sub);">Hoặc chọn file:</label>
+          <input type="file" id="import-file-input" accept=".csv,.txt" style="font-size:0.82rem;">
         </div>
 
-        <!-- Rating evaluation -->
-        <div id="fc-rate-box" class="w-full max-w-xl mx-auto hidden">
-          <div class="text-center text-[10px] font-bold text-[#939bb4] mb-3 uppercase tracking-widest">Độ thuộc của bạn thế nào?</div>
-          <div class="grid grid-cols-4 gap-2.5">
-            <button data-q="0" class="rate-btn flex flex-col items-center p-3 bg-red-950/30 hover:bg-red-950/60 border border-red-500/40 text-red-400 rounded-xl transition-all font-bold">
-              <span class="text-lg">❌</span>
-              <span class="text-[10px] mt-1 uppercase tracking-wider">Quên</span>
-            </button>
-            <button data-q="3" class="rate-btn flex flex-col items-center p-3 bg-amber-950/30 hover:bg-amber-950/60 border border-amber-500/40 text-amber-400 rounded-xl transition-all font-bold">
-              <span class="text-lg">🤔</span>
-              <span class="text-[10px] mt-1 uppercase tracking-wider">Khó</span>
-            </button>
-            <button data-q="4" class="rate-btn flex flex-col items-center p-3 bg-blue-950/30 hover:bg-blue-950/60 border border-blue-500/40 text-blue-400 rounded-xl transition-all font-bold">
-              <span class="text-lg">😊</span>
-              <span class="text-[10px] mt-1 uppercase tracking-wider">Tốt</span>
-            </button>
-            <button data-q="5" class="rate-btn flex flex-col items-center p-3 bg-emerald-950/30 hover:bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 rounded-xl transition-all font-bold">
-              <span class="text-lg">🔥</span>
-              <span class="text-[10px] mt-1 uppercase tracking-wider">Dễ</span>
-            </button>
+        <div id="import-preview" class="import-preview hidden">
+          <div class="import-preview-title">Xem trước (preview):</div>
+          <div id="import-preview-table"></div>
+        </div>
+      </div>
+      <div class="modal-actions-row">
+        <button type="button" class="btn-modal-action btn-decline" onclick="closeImportModal()">Hủy</button>
+        <button type="button" id="import-preview-btn" class="btn-modal-action" style="background:var(--bg-input); color:var(--text-main);"><i class="fas fa-eye"></i> Xem trước</button>
+        <button type="button" id="import-confirm-btn" class="btn-modal-action btn-confirm"><i class="fas fa-check"></i> Nhập vào học phần</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= KEYBOARD SHORTCUTS MODAL ================= -->
+  <div id="shortcutsModal" class="modal-overlay">
+    <div class="modal-card" style="max-width:560px;">
+      <div class="modal-header-row">
+        <h3 class="modal-title"><i class="fas fa-keyboard"></i> Phím tắt</h3>
+        <button class="btn-close-modal-x" onclick="closeShortcutsModal()">&times;</button>
+      </div>
+      <div class="shortcuts-grid">
+        <div class="shortcut-section">
+          <div class="shortcut-section-title">Flashcard Mode</div>
+          <div class="shortcut-row"><kbd>Space</kbd><span>Lật thẻ</span></div>
+          <div class="shortcut-row"><kbd>&#8592;</kbd><span>Thẻ trước</span></div>
+          <div class="shortcut-row"><kbd>&#8594;</kbd><span>Thẻ tiếp theo</span></div>
+          <div class="shortcut-row"><kbd>1</kbd><span>Quên (Again)</span></div>
+          <div class="shortcut-row"><kbd>2</kbd><span>Khó (Hard)</span></div>
+          <div class="shortcut-row"><kbd>3</kbd><span>Tốt (Good)</span></div>
+          <div class="shortcut-row"><kbd>4</kbd><span>Dễ (Easy)</span></div>
+        </div>
+        <div class="shortcut-section">
+          <div class="shortcut-section-title">Write Mode</div>
+          <div class="shortcut-row"><kbd>Enter</kbd><span>Kiểm tra / Tiếp theo</span></div>
+          <div class="shortcut-row"><kbd>Tab</kbd><span>Bỏ qua</span></div>
+        </div>
+        <div class="shortcut-section">
+          <div class="shortcut-section-title">Toàn cục</div>
+          <div class="shortcut-row"><kbd>?</kbd><span>Hiện/Ẩn phím tắt</span></div>
+          <div class="shortcut-row"><kbd>D</kbd><span>Tôối / Sáng mode</span></div>
+          <div class="shortcut-row"><kbd>Esc</kbd><span>Đóng modal</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= SMART REVIEW SESSION MODAL ================= -->
+  <div id="smartReviewModal" class="modal-overlay">
+    <div class="modal-card" style="max-width:500px;">
+      <div class="modal-header-row">
+        <h3 class="modal-title"><i class="fas fa-brain"></i> Ôn tập thông minh</h3>
+        <button class="btn-close-modal-x" onclick="closeSmartReviewModal()">&times;</button>
+      </div>
+      <div id="smart-review-content" style="padding: 8px 0; display:flex; flex-direction:column; gap:16px;">
+        <div class="smart-review-summary">
+          <div class="smart-review-stat">
+            <div class="smart-review-num" id="sr-due-count" style="color:var(--danger);">0</div>
+            <div class="smart-review-lbl">Đến hạn ôn</div>
+          </div>
+          <div class="smart-review-stat">
+            <div class="smart-review-num" id="sr-new-count" style="color:var(--primary);">0</div>
+            <div class="smart-review-lbl">Từ mới</div>
+          </div>
+          <div class="smart-review-stat">
+            <div class="smart-review-num" id="sr-mastered-count" style="color:var(--success);">0</div>
+            <div class="smart-review-lbl">Đã thuộc</div>
+          </div>
+          <div class="smart-review-stat">
+            <div class="smart-review-num" id="sr-starred-count" style="color:var(--warning);">0</div>
+            <div class="smart-review-lbl">Đã đánh dấu</div>
           </div>
         </div>
-
-        <!-- Term Listing underneath flashcards -->
-        <div class="quizlet-card p-6 rounded-2xl mt-10">
-          <h3 class="text-sm font-bold text-white mb-4 uppercase tracking-widest font-display">Từ vựng trong học phần này</h3>
-          <div class="divide-y divide-[#3c4257] space-y-4">
-            <div id="set-terms-list" class="space-y-4 pt-4">
-              <!-- Term rows: Front | Back -->
-            </div>
+        <div style="padding: 14px; background: linear-gradient(135deg, rgba(66,85,255,0.08), rgba(108,130,255,0.05)); border-radius: 14px; border: 1px solid rgba(66,85,255,0.2);">
+          <p style="font-size:0.88rem; color:var(--text-main); line-height:1.6;">Hệ thống sẽ chọn <strong style="color:var(--primary);">tự động</strong> các thẻ cần ôn tập dựa trên thuật toán SM-2. Bạn sẽ chỉ ôn đúng những từ cần thiết vào đúng thời điểm!</p>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <label style="font-size:0.85rem; font-weight:700;">Lọc thẻ ôn tập:</label>
+          <select id="smart-review-filter" class="study-mode-select">
+            <option value="all">Tất cả thẻ (Đến hạn & Từ mới)</option>
+            <option value="starred">Chỉ các thẻ đã đánh dấu ⭐</option>
+          </select>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <label style="font-size:0.85rem; font-weight:700;">Chế độ ôn:</label>
+          <select id="smart-review-mode" class="study-mode-select">
+            <option value="flashcards">🎴 Flashcard (SM-2)</option>
+            <option value="write">✍️ Viết từ</option>
+            <option value="quiz">🎮 Trắc nghiệm</option>
+          </select>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <label style="font-size:0.85rem; font-weight:700;">Số thẻ tối đa mỗi phiên:</label>
+          <div style="display:flex; gap:8px;">
+            <button class="sr-limit-btn active" data-limit="20">20</button>
+            <button class="sr-limit-btn" data-limit="50">50</button>
+            <button class="sr-limit-btn" data-limit="100">100</button>
+            <button class="sr-limit-btn" data-limit="999">Tất cả</button>
           </div>
         </div>
       </div>
-
-      <!-- Sub-view 3.2: Match Game Panel -->
-      <div id="subview-match" class="hidden space-y-6 pt-4">
-        <div class="flex justify-center gap-4 text-xs font-bold uppercase tracking-wider bg-[#1a1b2f] p-4 rounded-xl border border-[#3c4257] max-w-md mx-auto">
-          <div>⏱️ Thời gian: <span id="m-timer" class="font-bold text-white text-sm pl-1">0.0</span>s</div>
-          <div class="text-[#3c4257]">|</div>
-          <div class="text-yellow-400">🏆 Kỷ lục: <span id="m-highscore" class="font-bold text-yellow-400 text-sm pl-1">0.0</span>s</div>
-        </div>
-
-        <!-- Match Start screen -->
-        <div id="m-start-screen" class="quizlet-card rounded-2xl p-8 text-center max-w-md mx-auto shadow-xl flex flex-col items-center">
-          <span class="text-4xl mb-3">🔀</span>
-          <h3 class="text-md font-bold text-white mb-2 uppercase tracking-widest font-display">Bắt đầu ghép thẻ</h3>
-          <p class="text-xs text-[#939bb4] leading-relaxed mb-6">Ghép thuật ngữ và định nghĩa tương thích nhanh nhất có thể.</p>
-          <button id="m-start-btn" class="px-6 py-2.5 quizlet-btn-primary font-bold rounded-xl text-xs uppercase tracking-wider">Bắt đầu</button>
-        </div>
-
-        <!-- Grid Arena -->
-        <div id="m-arena" class="hidden grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-xl mx-auto">
-          <!-- Scattered Cards -->
-        </div>
-
-        <!-- Match Finished Screen -->
-        <div id="m-finish-screen" class="hidden bg-emerald-950/20 border border-emerald-500/30 rounded-2xl p-8 text-center max-w-md mx-auto shadow-xl flex flex-col items-center">
-          <span class="text-4xl mb-3 block">🏆</span>
-          <h3 class="text-lg font-bold text-emerald-400 mb-2 uppercase tracking-widest font-display">Hoàn thành!</h3>
-          <p class="text-xs text-[#939bb4] mb-6">Bạn hoàn thành trò chơi trong <strong id="m-result-time" class="text-emerald-400 text-base font-display">0.0</strong> giây.</p>
-          <button id="m-replay-btn" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs uppercase tracking-wider">Chơi lại</button>
-        </div>
-      </div>
-
-      <!-- Sub-view 3.3: Test Mode Panel -->
-      <div id="subview-test" class="hidden space-y-6 pt-4 max-w-xl mx-auto">
-        <div id="t-start-panel" class="text-center quizlet-card p-6 rounded-2xl">
-          <span class="text-4xl block mb-2">📝</span>
-          <h3 class="text-md font-bold text-white mb-2 uppercase tracking-widest font-display">Bài trắc nghiệm</h3>
-          <p class="text-xs text-[#939bb4] mb-4 leading-relaxed">Đề thi 5 câu hỏi trắc nghiệm tự động xây dựng từ học phần.</p>
-          <button id="t-generate-btn" class="px-6 py-2.5 quizlet-btn-primary font-bold rounded-xl text-xs uppercase tracking-wider">Bắt đầu thi</button>
-        </div>
-
-        <!-- Test Form -->
-        <div id="t-paper" class="hidden space-y-6">
-          <form id="t-form" class="space-y-6">
-            <!-- Dynamic questions -->
-          </form>
-          <button id="t-submit-btn" class="w-full py-3 quizlet-btn-primary font-bold rounded-xl text-xs uppercase tracking-wider">Nộp bài chấm điểm</button>
-        </div>
-
-        <!-- Result Screen -->
-        <div id="t-result-panel" class="hidden quizlet-card p-8 rounded-2xl text-center shadow-xl">
-          <span id="t-emoji" class="text-5xl mb-3 block">🎯</span>
-          <h3 class="text-lg font-bold text-white mb-1 uppercase tracking-widest font-display">Kết quả thi</h3>
-          <div class="text-4xl font-extrabold text-white font-display mb-4"><span id="t-score-correct" class="text-sky-400">0</span> / <span id="t-score-total">5</span></div>
-          <p id="t-feedback" class="text-xs text-[#939bb4] leading-relaxed mb-6 italic"></p>
-          <button id="t-restart-btn" class="w-full py-2.5 bg-[#1a1b2f] border border-[#3c4257] hover:border-white text-white text-xs font-bold rounded-xl uppercase tracking-wider">Làm đề thi khác</button>
-        </div>
-      </div>
-
-    </section>
-
-    <!-- SECTION 4: CREATE/EDIT STUDY SET VIEW (Giống Ảnh 2 của bạn) -->
-    <section id="view-edit-set" class="hidden space-y-6">
-      
-      <!-- Top Action bar -->
-      <div class="flex justify-between items-center border-b border-[#2e3856] pb-4">
-        <div>
-          <h2 id="edit-view-title" class="text-2xl font-bold font-display text-white">Tạo học phần mới</h2>
-          <p class="text-xs text-[#939bb4] mt-0.5">Thêm các thẻ từ vựng của bạn để bắt đầu học tập.</p>
-        </div>
-        <!-- Done / Hoàn tất button at top-right -->
-        <button id="edit-set-done-btn" class="px-6 py-2.5 quizlet-btn-primary font-bold text-xs rounded-xl transition-all uppercase tracking-wider">
-          Hoàn tất
+      <div class="modal-actions-row">
+        <button type="button" class="btn-modal-action btn-decline" onclick="closeSmartReviewModal()">Hủy</button>
+        <button type="button" id="start-smart-review-btn" class="btn-modal-action btn-confirm" style="background:linear-gradient(135deg,#4255ff,#6c82ff);">
+          <i class="fas fa-play"></i> Bắt đầu ôn tập
         </button>
       </div>
+    </div>
+  </div>
 
-      <!-- Set Title & Description Inputs -->
-      <div class="quizlet-card p-6 rounded-2xl space-y-4">
-        <div>
-          <label for="set-title-input" class="block text-[10px] font-bold text-[#939bb4] uppercase tracking-wider mb-2">Tiêu đề học phần</label>
-          <input type="text" id="set-title-input" placeholder="Nhập tiêu đề (Ví dụ: Leg - Chân)" class="w-full px-4 py-3 rounded-xl outline-none text-sm transition-all quizlet-input font-bold">
-        </div>
-        <div>
-          <label for="set-desc-input" class="block text-[10px] font-bold text-[#939bb4] uppercase tracking-wider mb-2">Mô tả học phần (Không bắt buộc)</label>
-          <input type="text" id="set-desc-input" placeholder="Thêm mô tả..." class="w-full px-4 py-3 rounded-xl outline-none text-sm transition-all quizlet-input">
-        </div>
+  <!-- ================= POMODORO TIMER PANEL ================= -->
+  <div id="pomodoroWidget" class="pomodoro-widget hidden">
+    <div class="pomodoro-header">
+      <span class="pomodoro-title"><i class="fas fa-stopwatch"></i> Pomodoro Focus</span>
+      <button class="btn-pomodoro-minimize" id="pomodoroMinimizeBtn" title="Thu nhỏ/Phóng to"><i class="fas fa-minus"></i></button>
+      <button class="btn-pomodoro-close" id="pomodoroCloseBtn" title="Đóng">&times;</button>
+    </div>
+    <div class="pomodoro-body">
+      <div class="pomodoro-timer-display">
+        <svg class="pomodoro-svg-ring" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="45" fill="none" class="pomodoro-bg-circle"></circle>
+          <circle id="pomodoro-ring-fill" cx="50" cy="50" r="45" fill="none" class="pomodoro-fill-circle"
+            stroke-dasharray="282.7" stroke-dashoffset="0"></circle>
+        </svg>
+        <div class="pomodoro-time-text" id="pomodoroTime">25:00</div>
       </div>
+      <div class="pomodoro-status" id="pomodoroStatus">Căng thẳng? Bắt đầu tập trung!</div>
+      <div class="pomodoro-controls">
+        <button id="pomodoroStartBtn" class="btn-pomodoro-action start"><i class="fas fa-play"></i> Bắt đầu</button>
+        <button id="pomodoroResetBtn" class="btn-pomodoro-action reset"><i class="fas fa-redo"></i> Đặt lại</button>
+      </div>
+      <div class="pomodoro-modes">
+        <button class="pomodoro-mode-btn active" data-mode="work">Tập trung (25m)</button>
+        <button class="pomodoro-mode-btn" data-mode="break">Thư giãn (5m)</button>
+      </div>
+    </div>
+  </div>
 
-      <!-- Card rows container -->
-      <div class="space-y-4">
-        <h3 class="text-xs font-bold text-[#939bb4] uppercase tracking-widest px-1">Danh sách từ vựng</h3>
+  <!-- ================= PRINT OPTIONS MODAL ================= -->
+  <div id="printModal" class="modal-overlay">
+    <div class="modal-card" style="max-width:480px;">
+      <div class="modal-header-row">
+        <h3 class="modal-title"><i class="fas fa-print"></i> In &amp; Xuất PDF học phần</h3>
+        <button class="btn-close-modal-x" onclick="closePrintModal()">&times;</button>
+      </div>
+      <div style="padding:8px 0; display:flex; flex-direction:column; gap:16px;">
+        <p style="font-size:0.85rem; color:var(--text-sub); margin:0;">Chọn bố cục in phù hợp với mục đích học tập của bạn:</p>
         
-        <!-- Cards dynamic rows list -->
-        <div id="edit-cards-rows-list" class="space-y-4">
-          <!-- Dynamic Row Items -->
-        </div>
+        <!-- Option 1: Vocabulary List -->
+        <label class="import-format-label" style="display:flex; gap:12px; align-items:flex-start; padding:12px; border:1px solid var(--border-color); border-radius:10px; cursor:pointer; background:var(--bg-input);">
+          <input type="radio" name="print-layout" value="list" checked style="margin-top:4px;">
+          <div>
+            <div style="font-weight:700; font-size:0.9rem; color:var(--text-main);">📋 Danh sách từ vựng (Vocabulary List)</div>
+            <div style="font-size:0.78rem; color:var(--text-sub); margin-top:2px;">Bảng tổng hợp gọn gàng có thuật ngữ, phiên âm, loại từ, nghĩa và ví dụ. Rất phù hợp để kẹp sách học nhanh.</div>
+          </div>
+        </label>
 
-        <!-- Add Card Row Button -->
-        <button id="edit-add-row-btn" class="w-full py-4 bg-[#1a1b3a] border-2 border-dashed border-[#2e3856] hover:border-white text-[#939bb4] hover:text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-colors">
-          ➕ Thêm thẻ mới
+        <!-- Option 2: Cut-out Flashcards -->
+        <label class="import-format-label" style="display:flex; gap:12px; align-items:flex-start; padding:12px; border:1px solid var(--border-color); border-radius:10px; cursor:pointer; background:var(--bg-input);">
+          <input type="radio" name="print-layout" value="cards" style="margin-top:4px;">
+          <div>
+            <div style="font-weight:700; font-size:0.9rem; color:var(--text-main);">🎴 Thẻ gấp/cắt (Cut-out Flashcards)</div>
+            <div style="font-size:0.78rem; color:var(--text-sub); margin-top:2px;">Dàn trang dạng lưới 3x4. Mặt trước (Thuật ngữ) và Mặt sau (Định nghĩa) xếp đối xứng để gấp đôi và cắt thành thẻ giấy.</div>
+          </div>
+        </label>
+      </div>
+      <div class="modal-actions-row">
+        <button type="button" class="btn-modal-action btn-decline" onclick="closePrintModal()">Hủy bỏ</button>
+        <button type="button" onclick="startPrintProcess()" class="btn-modal-action btn-confirm" style="background:#23b26d; border-color:#23b26d;">
+          <i class="fas fa-print"></i> Tiếp tục in
         </button>
       </div>
+    </div>
+  </div>
 
-    </section>
-
-  </main>
+  <!-- Word Types Datalist for autocomplete -->
+  <datalist id="word-types-datalist">
+    <option value="n. (Danh từ)"></option>
+    <option value="v. (Động từ)"></option>
+    <option value="adj. (Tính từ)"></option>
+    <option value="adv. (Trạng từ)"></option>
+    <option value="prep. (Giới từ)"></option>
+    <option value="conj. (Liên từ)"></option>
+    <option value="phr v. (Cụm động từ)"></option>
+    <option value="idiom (Thành ngữ)"></option>
+  </datalist>
 
   <!-- Script Module -->
-  <script type="module" src="app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
