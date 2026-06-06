@@ -147,6 +147,15 @@ function updateUserWidgetUI() {
     roleEl.innerText = currentUser.role;
     roleEl.className = `user-role-badge ${currentUser.role}`;
     
+    const avatarContainer = document.getElementById('sidebar-avatar-container');
+    if (avatarContainer) {
+      if (currentUser.avatarUrl) {
+        avatarContainer.innerHTML = `<img src="${currentUser.avatarUrl}" alt="Avatar" class="user-avatar-img">`;
+      } else {
+        avatarContainer.innerHTML = `<i class="fas fa-user-circle"></i>`;
+      }
+    }
+    
     if (currentUser.role === 'admin' && !isDemoMode) {
       adminBtn.classList.remove('hidden');
     } else {
@@ -587,7 +596,8 @@ const views = {
   'edit-set': document.getElementById('view-edit-set'),
   'analytics': document.getElementById('view-analytics'),
   'auth': document.getElementById('view-auth'),
-  'admin': document.getElementById('view-admin')
+  'admin': document.getElementById('view-admin'),
+  'profile': document.getElementById('view-profile')
 };
 
 function showView(viewName) {
@@ -615,6 +625,8 @@ function showView(viewName) {
   } else if (viewName === 'admin') {
     document.getElementById('menu-admin-btn').classList.add('active');
     loadAdminDashboard();
+  } else if (viewName === 'profile') {
+    initProfileView();
   }
 
   // Sidebar shortcut activation
@@ -2587,6 +2599,12 @@ window.handleLogout = function() {
 };
 
 document.getElementById('sidebar-logout-btn').addEventListener('click', handleLogout);
+
+// Navigate to Profile view when clicking user widget
+document.getElementById('sidebar-user-widget').addEventListener('click', (e) => {
+  if (e.target.closest('#sidebar-logout-btn')) return; // Ignore logout
+  showView('profile');
+});
 
 // Continue Offline Mode (Demo Mode)
 document.getElementById('auth-offline-btn').addEventListener('click', () => {
@@ -5455,3 +5473,220 @@ function triggerConfetti() {
 
   requestAnimationFrame(animate);
 }
+
+// ==========================================
+// 10. USER PROFILE VIEW LOGIC
+// ==========================================
+async function initProfileView() {
+  if (!currentUser) return;
+  
+  // Fill profile details
+  document.getElementById('profile-display-username').innerText = currentUser.username;
+  document.getElementById('profile-display-role').innerText = currentUser.role;
+  document.getElementById('profile-display-role').className = `user-role-badge ${currentUser.role}`;
+  document.getElementById('profile-input-username').value = currentUser.username;
+  
+  // Avatar
+  const avatarDisplay = document.getElementById('profile-avatar-display');
+  if (currentUser.avatarUrl) {
+    avatarDisplay.innerHTML = `<img src="${currentUser.avatarUrl}" alt="Avatar" class="user-avatar-img">`;
+  } else {
+    avatarDisplay.innerHTML = `<i class="fas fa-user-circle"></i>`;
+  }
+
+  // Hide forms if Offline
+  const formsBox = document.getElementById('profile-online-forms-box');
+  const offlineWarning = document.getElementById('profile-offline-warning');
+  const avatarBtn = document.getElementById('profile-avatar-btn');
+  if (isDemoMode) {
+    formsBox.classList.add('hidden');
+    offlineWarning.classList.remove('hidden');
+    if (avatarBtn) avatarBtn.classList.add('hidden');
+  } else {
+    formsBox.classList.remove('hidden');
+    offlineWarning.classList.add('hidden');
+    if (avatarBtn) avatarBtn.classList.remove('hidden');
+  }
+
+  // Load stats
+  const streakKey = typeof getUserKey === 'function' ? getUserKey('study_streak') : 'study_streak';
+  const streakVal = parseInt(localStorage.getItem(streakKey) || '0');
+  document.getElementById('profile-stat-streak').innerText = streakVal;
+
+  let folders = [];
+  let sets = [];
+  let cards = [];
+  
+  if (isDemoMode) {
+    folders = getLocalStorage(FOLDERS_KEY);
+    sets = getLocalStorage(SETS_KEY);
+    cards = getLocalStorage(CARDS_KEY);
+  } else {
+    try {
+      const foldersRes = await fetch('/api/folders');
+      if (foldersRes.ok) folders = await foldersRes.json();
+      
+      const setsRes = await fetch('/api/sets');
+      if (setsRes.ok) sets = await setsRes.json();
+      
+      const cardsRes = await fetch('/api/cards');
+      if (cardsRes.ok) cards = await cardsRes.json();
+    } catch (e) {
+      console.error("Error loading profile stats:", e);
+    }
+  }
+
+  document.getElementById('profile-stat-folders').innerText = folders.length;
+  document.getElementById('profile-stat-sets').innerText = sets.length;
+  document.getElementById('profile-stat-cards').innerText = cards.length;
+
+  // Load Settings
+  document.getElementById('profile-setting-tts-enabled').checked = ttsSettings.enabled;
+  document.getElementById('profile-setting-tts-autoflip').checked = ttsSettings.autoFlip;
+  document.getElementById('profile-setting-audio-feedback').checked = ttsSettings.audioFeedback !== false;
+  document.getElementById('profile-setting-tts-rate').value = ttsSettings.rate;
+  document.getElementById('profile-setting-tts-rate-label').innerText = ttsSettings.rate + 'x';
+  document.getElementById('profile-setting-tts-voice').value = ttsSettings.voice;
+}
+
+// Track slider rates
+document.getElementById('profile-setting-tts-rate').addEventListener('input', (e) => {
+  document.getElementById('profile-setting-tts-rate-label').innerText = parseFloat(e.target.value).toFixed(1) + 'x';
+});
+
+// Save settings handler
+document.getElementById('profile-save-settings-btn').addEventListener('click', async () => {
+  ttsSettings.enabled = document.getElementById('profile-setting-tts-enabled').checked;
+  ttsSettings.autoFlip = document.getElementById('profile-setting-tts-autoflip').checked;
+  ttsSettings.audioFeedback = document.getElementById('profile-setting-audio-feedback').checked;
+  ttsSettings.rate = parseFloat(document.getElementById('profile-setting-tts-rate').value);
+  ttsSettings.voice = document.getElementById('profile-setting-tts-voice').value;
+  
+  await saveTTSSettings();
+  showToast('Đã lưu cấu hình ứng dụng thành công!', 'success');
+  
+  // Sync to TTS Modal if it exists
+  const modalToggle = document.getElementById('tts-enabled-toggle');
+  if (modalToggle) {
+    modalToggle.checked = ttsSettings.enabled;
+    document.getElementById('tts-auto-flip-toggle').checked = ttsSettings.autoFlip;
+    document.getElementById('audio-feedback-toggle').checked = ttsSettings.audioFeedback;
+    document.getElementById('tts-rate-slider').value = ttsSettings.rate;
+    document.getElementById('tts-rate-label').innerText = ttsSettings.rate + 'x';
+    document.getElementById('tts-voice-select').value = ttsSettings.voice;
+  }
+});
+
+// Profile forms submit: update username
+document.getElementById('profile-username-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const newUsername = document.getElementById('profile-input-username').value.trim();
+  if (!newUsername) return;
+
+  try {
+    const res = await fetch('/api/user/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: newUsername })
+    });
+    
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Cập nhật thất bại.');
+    }
+    
+    const data = await res.json();
+    currentUser.username = data.user.username;
+    localStorage.setItem('tct_srs_current_user', JSON.stringify(currentUser));
+    
+    updateUserWidgetUI();
+    document.getElementById('profile-display-username').innerText = currentUser.username;
+    showToast('Cập nhật tên đăng nhập thành công!', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+});
+
+// Profile forms submit: change password
+document.getElementById('profile-pwd-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const currentPassword = document.getElementById('profile-pwd-curr').value;
+  const newPassword = document.getElementById('profile-pwd-new').value;
+  const confPassword = document.getElementById('profile-pwd-conf').value;
+
+  if (newPassword !== confPassword) {
+    showToast('Xác nhận mật khẩu mới không khớp!', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/user/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+    
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Đổi mật khẩu thất bại.');
+    }
+    
+    document.getElementById('profile-pwd-curr').value = '';
+    document.getElementById('profile-pwd-new').value = '';
+    document.getElementById('profile-pwd-conf').value = '';
+    
+    showToast('Đổi mật khẩu bảo mật thành công!', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+});
+
+// Avatar upload trigger
+document.getElementById('profile-avatar-btn').addEventListener('click', () => {
+  document.getElementById('profile-avatar-file').click();
+});
+
+// Avatar file upload handler
+document.getElementById('profile-avatar-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const base64Data = reader.result;
+    
+    try {
+      showToast('Đang tải ảnh đại diện lên...', 'info');
+      // 1. Upload file
+      const uploadRes = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: file.name, base64Data })
+      });
+      
+      if (!uploadRes.ok) throw new Error('Không thể tải tệp lên server.');
+      const uploadData = await uploadRes.json();
+      const avatarUrl = uploadData.url;
+
+      // 2. Save avatar URL to user profile
+      const profileRes = await fetch('/api/user/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ avatarUrl })
+      });
+      
+      if (!profileRes.ok) throw new Error('Không thể lưu ảnh đại diện vào hồ sơ.');
+      const profileData = await profileRes.json();
+      
+      currentUser.avatarUrl = profileData.user.avatarUrl;
+      localStorage.setItem('tct_srs_current_user', JSON.stringify(currentUser));
+      
+      updateUserWidgetUI();
+      document.getElementById('profile-avatar-display').innerHTML = `<img src="${currentUser.avatarUrl}" alt="Avatar" class="user-avatar-img">`;
+      showToast('Tải ảnh đại diện mới thành công!', 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+  reader.readAsDataURL(file);
+});

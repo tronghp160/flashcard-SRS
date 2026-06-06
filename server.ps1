@@ -230,6 +230,7 @@ try {
                                         id = $foundUser.id
                                         username = $foundUser.username
                                         role = $foundUser.role
+                                        avatarUrl = $foundUser.avatarUrl
                                     }
                                 }
                             }
@@ -631,6 +632,81 @@ try {
                             &$saveDb $db
                             $responseData = @{ success = $true }
                             $statusCode = 201
+                        }
+                    }
+                    # 4.5 User Profile Update
+                    elseif ($urlPath -eq "/api/user/profile") {
+                        if ($method -eq "PUT") {
+                            $req = ConvertFrom-Json $body
+                            $userIdx = -1
+                            for ($i = 0; $i -lt $db.users.Count; $i++) {
+                                if ($db.users[$i].id -eq $currentUser.id) { $userIdx = $i; break }
+                            }
+                            
+                            if ($userIdx -eq -1) {
+                                $statusCode = 404
+                                $responseData = @{ error = "User not found" }
+                            } else {
+                                $user = $db.users[$userIdx]
+                                
+                                # 1. Update username
+                                if ($req.username) {
+                                    $newUsername = $req.username.Trim().ToLower()
+                                    if ($newUsername -ne $user.username) {
+                                        # Check duplicate
+                                        $exists = $false
+                                        foreach ($u in $db.users) {
+                                            if ($u.username.ToLower() -eq $newUsername) {
+                                                $exists = $true; break
+                                            }
+                                        }
+                                        if ($exists) {
+                                            $statusCode = 400
+                                            $responseData = @{ error = "Username already exists" }
+                                        } else {
+                                            $user.username = $newUsername
+                                        }
+                                    }
+                                }
+                                
+                                # 2. Update avatarUrl
+                                if ($null -ne $req.avatarUrl) {
+                                    if ($null -eq $user.psobject.Properties["avatarUrl"]) {
+                                        $user | Add-Member -MemberType NoteProperty -Name "avatarUrl" -Value $req.avatarUrl -Force
+                                    } else {
+                                        $user.avatarUrl = $req.avatarUrl
+                                    }
+                                }
+                                
+                                # 3. Update password
+                                if ($req.newPassword) {
+                                    if (-not $req.currentPassword) {
+                                        $statusCode = 400
+                                        $responseData = @{ error = "Current password is required to change password" }
+                                    } else {
+                                        $currentHash = Get-PasswordHash $req.currentPassword
+                                        if ($currentHash -ne $user.passwordHash) {
+                                            $statusCode = 400
+                                            $responseData = @{ error = "Incorrect current password" }
+                                        } else {
+                                            $user.passwordHash = Get-PasswordHash $req.newPassword
+                                        }
+                                    }
+                                }
+                                
+                                if ($statusCode -eq 200) {
+                                    &$saveDb $db
+                                    $responseData = @{
+                                        success = $true
+                                        user = @{
+                                            id = $user.id
+                                            username = $user.username
+                                            role = $user.role
+                                            avatarUrl = $user.avatarUrl
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                     # 5. Settings (stored in user object)
