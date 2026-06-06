@@ -862,24 +862,15 @@ async function refreshGlobalStats() {
   document.getElementById('stat-cards').innerText = allCards.length;
   document.getElementById('total-cards-label').innerText = `${allCards.length} từ vựng`;
 
-  // Update Today's Review banner counts
-  const now = new Date();
-  const dueCards = allCards.filter(c => {
-    const revDate = new Date(c.next_review || 0);
-    return revDate <= now;
-  });
-
-  const dueCount = dueCards.length;
-  document.getElementById('today-due-count').innerText = dueCount;
-  
+  // Update Today's Review banner counts (Simplified for normal flashcards)
   const startReviewBtn = document.getElementById('start-review-btn');
   const reviewText = document.getElementById('today-review-count-text');
-  if (dueCount > 0) {
+  if (allCards.length > 0) {
     startReviewBtn.disabled = false;
-    reviewText.innerHTML = `Bạn có <strong>${dueCount}</strong> từ vựng đến hạn ôn tập.`;
+    reviewText.innerHTML = `Bạn có tổng cộng <strong>${allCards.length}</strong> từ vựng trong thư viện.`;
   } else {
     startReviewBtn.disabled = true;
-    reviewText.innerHTML = `Tuyệt vời! Bạn đã hoàn thành hết các thẻ cần ôn hôm nay.`;
+    reviewText.innerHTML = `Chưa có từ vựng nào trong thư viện. Hãy tạo học phần mới để học!`;
   }
 
   const total = allCards.length;
@@ -1288,29 +1279,17 @@ async function showSetDetailView(setId) {
     return revDate <= now;
   });
   
-  document.getElementById('set-due-count').innerText = dueCards.length;
+  // Always bypass the SRS selection banner and start studying all cards directly
   const banner = document.getElementById('study-select-banner');
-  const btnDue = document.getElementById('btn-study-due');
+  banner.classList.add('hidden');
   
-  if (dueCards.length > 0) {
-    btnDue.disabled = false;
-    banner.classList.remove('hidden');
-    
-    document.querySelector('.flashcard-container').classList.add('hidden');
-    document.querySelector('.study-card-controls').classList.add('hidden');
-    document.querySelector('.study-stats-grid').classList.add('hidden');
-  } else {
-    btnDue.disabled = true;
-    banner.classList.add('hidden');
-    
-    document.querySelector('.flashcard-container').classList.remove('hidden');
-    document.querySelector('.study-card-controls').classList.remove('hidden');
-    document.querySelector('.study-stats-grid').classList.remove('hidden');
-    
-    studyFilterMode = 'all';
-    document.getElementById('studyMode').value = 'flashcards';
-    selectStudyMode('flashcards');
-  }
+  document.querySelector('.flashcard-container').classList.remove('hidden');
+  document.querySelector('.study-card-controls').classList.remove('hidden');
+  document.querySelector('.study-stats-grid').classList.remove('hidden');
+  
+  studyFilterMode = 'all';
+  document.getElementById('studyMode').value = 'flashcards';
+  selectStudyMode('flashcards');
 }
 
 function renderSetTermsList() {
@@ -1718,10 +1697,8 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'ArrowLeft') document.getElementById('prevBtn').click();
   
   if (fcIsFlipped) {
-    if (e.key === '1') { e.preventDefault(); markCardSRS(1); }
-    if (e.key === '2') { e.preventDefault(); markCardSRS(3); }
-    if (e.key === '3') { e.preventDefault(); markCardSRS(4); }
-    if (e.key === '4') { e.preventDefault(); markCardSRS(5); }
+    if (e.key === '1') { e.preventDefault(); markCardSRS(1); } // Học tiếp
+    if (e.key === '2') { e.preventDefault(); markCardSRS(5); } // Đã thuộc
   }
 });
 
@@ -1755,7 +1732,7 @@ function handlePointerEnd() {
       setTimeout(() => {
         fcInner.style.transform = '';
         fcInner.style.opacity = '';
-        markCardSRS(4); // Good
+        markCardSRS(5); // Đã thuộc
       }, 150);
     } else {
       fcInner.style.transform = `translateX(-200px) rotate(-15deg) ${fcIsFlipped ? 'rotateY(180deg)' : ''}`;
@@ -1763,7 +1740,7 @@ function handlePointerEnd() {
       setTimeout(() => {
         fcInner.style.transform = '';
         fcInner.style.opacity = '';
-        markCardSRS(1); // Again
+        markCardSRS(1); // Học tiếp
       }, 150);
     }
   } else {
@@ -2796,9 +2773,9 @@ window.deleteUserAccount = async function(userId, username) {
   }
 };
 
-// Today's review button
+// Today's review button (Simplified to go to Library)
 document.getElementById('start-review-btn').addEventListener('click', () => {
-  showSetDetailView('all_due');
+  initFoldersListView();
 });
 
 // Shortcut Help Modal triggers

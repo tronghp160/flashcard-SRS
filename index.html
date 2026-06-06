@@ -289,7 +289,7 @@
 
         <!-- Charts Section -->
         <div class="charts-row">
-          <div class="chart-card">
+          <div class="chart-card" style="display: none !important;">
             <h4 class="chart-title"><i class="fas fa-chart-line"></i> Dự báo ôn tập (7 ngày tới)</h4>
             <div class="chart-body">
               <canvas id="forecastChart"></canvas>
@@ -512,7 +512,7 @@
                 </div>
                 <img id="card-image" class="card-img" style="display: none;" alt="" />
                 <div id="back-text" class="card-text">Vietnamese Meaning</div>
-                <div class="card-back-spec-pill">
+                <div class="card-back-spec-pill" style="display: none !important;">
                   <span>EF: <strong id="fc-ef-val">2.5</strong></span>
                   <span>•</span>
                   <span>Lặp lại: <strong id="fc-rep-val">0</strong></span>
@@ -524,19 +524,13 @@
             </div>
           </div>
 
-          <!-- Learning rating action buttons (4 levels, hidden by default until card flipped) -->
+          <!-- Learning rating action buttons (2 options: Still learning / Got it) -->
           <div class="learning-actions-row hidden" id="rating-actions">
-            <button class="btn-status-action btn-again" onclick="markCardSRS(1)">
-              <span class="action-btn-shortcut">1</span> <i class="fas fa-redo"></i> Quên (Again)
+            <button class="btn-status-action btn-again" onclick="markCardSRS(1)" style="flex: 1; justify-content: center; background-color: rgba(255, 107, 107, 0.12); color: var(--danger);">
+              <span class="action-btn-shortcut">1</span> <i class="fas fa-redo"></i> Học tiếp (Still learning)
             </button>
-            <button class="btn-status-action btn-hard" onclick="markCardSRS(3)">
-              <span class="action-btn-shortcut">2</span> <i class="fas fa-circle-notch"></i> Khó (Hard)
-            </button>
-            <button class="btn-status-action btn-good" onclick="markCardSRS(4)">
-              <span class="action-btn-shortcut">3</span> <i class="fas fa-check-circle"></i> Tốt (Good)
-            </button>
-            <button class="btn-status-action btn-easy" onclick="markCardSRS(5)">
-              <span class="action-btn-shortcut">4</span> <i class="fas fa-star"></i> Dễ (Easy)
+            <button class="btn-status-action btn-easy" onclick="markCardSRS(5)" style="flex: 1; justify-content: center; background-color: rgba(35, 178, 109, 0.12); color: var(--success);">
+              <span class="action-btn-shortcut">2</span> <i class="fas fa-check-circle"></i> Đã thuộc (Got it)
             </button>
           </div>
 
@@ -615,7 +609,6 @@
                 <select id="terms-filter-select" class="toolbar-select">
                   <option value="all">Lọc: Tất cả</option>
                   <option value="starred">Lọc: Đã đánh dấu ⭐</option>
-                  <option value="due">Lọc: Đến hạn ôn</option>
                   <option value="mastered">Lọc: Đã thuộc</option>
                   <option value="learning">Lọc: Đang học</option>
                   <option value="new">Lọc: Chưa học</option>
@@ -624,8 +617,6 @@
                   <option value="index">Xếp: Mặc định</option>
                   <option value="az">Xếp: Thuật ngữ A-Z</option>
                   <option value="za">Xếp: Thuật ngữ Z-A</option>
-                  <option value="hardest">Xếp: Khó nhất (EF thấp)</option>
-                  <option value="easiest">Xếp: Dễ nhất (EF cao)</option>
                   <option value="progress">Xếp: Lượt học nhiều nhất</option>
                 </select>
               </div>
