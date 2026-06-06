@@ -2861,20 +2861,39 @@ function clearQuizTimeout() {
 }
 
 // Dark mode toggle
-const darkToggle = document.getElementById('darkToggle');
-if (localStorage.getItem('darkMode') === 'true') {
-  document.body.classList.add('dark-mode');
-  darkToggle.innerText = '☀️';
-}
-darkToggle.addEventListener('click', () => {
-  document.body.classList.toggle('dark-mode');
-  const isDark = document.body.classList.contains('dark-mode');
-  localStorage.setItem('darkMode', isDark);
-  darkToggle.innerText = isDark ? '☀️' : '🌙';
+function updateDarkToggleUI(isDark) {
+  const darkToggle = document.getElementById('darkToggle');
+  if (!darkToggle) return;
+  const icon = document.getElementById('darkToggleIcon');
+  const text = document.getElementById('darkToggleText');
   
-  // Redraw charts with correct text colors
-  refreshGlobalStats();
-});
+  if (icon && text) {
+    icon.className = isDark ? 'fas fa-sun' : 'fas fa-moon';
+    text.innerText = isDark ? 'Chế độ sáng' : 'Chế độ tối';
+    darkToggle.title = isDark ? 'Chế độ sáng' : 'Chế độ tối';
+  } else {
+    darkToggle.innerText = isDark ? '☀️' : '🌙';
+  }
+}
+
+const darkToggle = document.getElementById('darkToggle');
+const initialIsDark = localStorage.getItem('darkMode') === 'true';
+if (initialIsDark) {
+  document.body.classList.add('dark-mode');
+}
+updateDarkToggleUI(initialIsDark);
+
+if (darkToggle) {
+  darkToggle.addEventListener('click', () => {
+    document.body.classList.toggle('dark-mode');
+    const isDark = document.body.classList.contains('dark-mode');
+    localStorage.setItem('darkMode', isDark);
+    updateDarkToggleUI(isDark);
+    
+    // Redraw charts with correct text colors
+    refreshGlobalStats();
+  });
+}
 
 // Escape HTML utility
 function escapeHtml(str) {
@@ -4527,7 +4546,7 @@ document.addEventListener('keydown', (e) => {
   // 'D' → dark mode toggle
   if (e.key === 'd' || e.key === 'D') {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
-    const btn = document.getElementById('dark-mode-toggle-btn');
+    const btn = document.getElementById('darkToggle');
     if (btn) btn.click();
   }
 
