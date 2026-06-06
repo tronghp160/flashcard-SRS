@@ -1749,7 +1749,7 @@ function handlePointerEnd() {
       }, 150);
     }
   } else {
-    fcInner.style.transform = fcIsFlipped ? 'rotateY(180deg)' : '';
+    fcInner.style.transform = '';
   }
   currentX = 0;
 }
