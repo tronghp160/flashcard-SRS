@@ -1584,10 +1584,17 @@ document.getElementById('end-exit-btn').addEventListener('click', () => {
 
 // Pronunciation
 window.speakWord = function(side) {
-  const text = side === 'front' 
-    ? document.getElementById('front-text').innerText 
-    : document.getElementById('back-text').innerText;
-  speakText(text, side === 'front' ? 'en-US' : 'vi-VN');
+  if (fcActiveIndex < currentStudyCards.length) {
+    const card = currentStudyCards[fcActiveIndex];
+    if (card && card.front_word) {
+      speakText(card.front_word, 'en-US');
+      return;
+    }
+  }
+  // Fallback if card object is not available
+  const text = document.getElementById('front-text').innerText;
+  const cleanText = text.split('/')[0].split('(')[0].trim();
+  speakText(cleanText, 'en-US');
 };
 
 function speakText(text, lang) {
