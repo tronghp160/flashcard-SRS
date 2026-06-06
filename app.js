@@ -3,9 +3,162 @@
 // ==========================================
 let isDemoMode = true;
 
+// Session & Authentication State
+let token = localStorage.getItem('tct_srs_token') || null;
+let currentUser = null;
+try {
+  const userStr = localStorage.getItem('tct_srs_current_user');
+  if (userStr) currentUser = JSON.parse(userStr);
+} catch (e) {
+  console.error("Error parsing current user:", e);
+}
+
+// Intercept fetch requests to append Authorization header
+const originalFetch = window.fetch;
+window.fetch = async function(url, options) {
+  options = options || {};
+  options.headers = options.headers || {};
+  if (token && !options.headers['Authorization']) {
+    options.headers['Authorization'] = `Bearer ${token}`;
+  }
+  return originalFetch(url, options);
+};
+
+// Switch auth tabs (Login / Register)
+window.switchAuthTab = function(tab) {
+  const loginForm = document.getElementById('auth-login-form');
+  const registerForm = document.getElementById('auth-register-form');
+  const loginBtn = document.getElementById('tab-login-btn');
+  const registerBtn = document.getElementById('tab-register-btn');
+  
+  if (tab === 'login') {
+    loginForm.classList.remove('hidden');
+    registerForm.classList.add('hidden');
+    loginBtn.classList.add('active');
+    registerBtn.classList.remove('active');
+  } else {
+    loginForm.classList.add('hidden');
+    registerForm.classList.remove('hidden');
+    loginBtn.classList.remove('active');
+    registerBtn.classList.add('active');
+  }
+};
+
+// Handle Authentication Forms Submission
+window.handleAuthSubmit = async function(event, type) {
+  event.preventDefault();
+  
+  if (type === 'login') {
+    const usernameInput = document.getElementById('login-username');
+    const passwordInput = document.getElementById('login-password');
+    const username = usernameInput.value.trim();
+    const password = passwordInput.value;
+    
+    try {
+      const res = await originalFetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Đăng nhập thất bại.');
+      }
+      
+      const data = await res.json();
+      token = data.token;
+      currentUser = data.user;
+      
+      localStorage.setItem('tct_srs_token', token);
+      localStorage.setItem('tct_srs_current_user', JSON.stringify(currentUser));
+      localStorage.removeItem('tct_srs_offline_mode'); // Clear offline flag
+      isDemoMode = false;
+      
+      showToast('Đăng nhập thành công!', 'success');
+      
+      // Update UI elements
+      document.body.classList.remove('not-logged-in');
+      updateUserWidgetUI();
+      
+      // Route to Home View
+      showView('home');
+      
+      // Clear inputs
+      usernameInput.value = '';
+      passwordInput.value = '';
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  } else if (type === 'register') {
+    const usernameInput = document.getElementById('register-username');
+    const passwordInput = document.getElementById('register-password');
+    const confirmPasswordInput = document.getElementById('register-confirm-password');
+    const username = usernameInput.value.trim();
+    const password = passwordInput.value;
+    const confirmPassword = confirmPasswordInput.value;
+    
+    if (password !== confirmPassword) {
+      showToast('Mật khẩu xác nhận không khớp!', 'error');
+      return;
+    }
+    
+    try {
+      const res = await originalFetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Đăng ký thất bại.');
+      }
+      
+      showToast('Đăng ký thành công! Hãy đăng nhập.', 'success');
+      
+      // Switch to login tab and auto-fill username
+      switchAuthTab('login');
+      document.getElementById('login-username').value = username;
+      document.getElementById('login-password').focus();
+      
+      // Clear inputs
+      usernameInput.value = '';
+      passwordInput.value = '';
+      confirmPasswordInput.value = '';
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  }
+};
+
+// Update sidebar user profile widget
+function updateUserWidgetUI() {
+  const widget = document.getElementById('sidebar-user-widget');
+  const adminBtn = document.getElementById('menu-admin-btn');
+  
+  if (currentUser) {
+    widget.classList.remove('hidden');
+    document.getElementById('sidebar-username').innerText = currentUser.username;
+    
+    const roleEl = document.getElementById('sidebar-user-role');
+    roleEl.innerText = currentUser.role;
+    roleEl.className = `user-role-badge ${currentUser.role}`;
+    
+    if (currentUser.role === 'admin' && !isDemoMode) {
+      adminBtn.classList.remove('hidden');
+    } else {
+      adminBtn.classList.add('hidden');
+    }
+  } else {
+    widget.classList.add('hidden');
+    adminBtn.classList.add('hidden');
+  }
+}
+
 async function initializeAppWithTimeout() {
   try {
-    const response = await fetch('/api/folders');
+    const response = await fetch('/api/status');
     if (response.ok) {
       isDemoMode = false;
       const warningBanner = document.getElementById('firebase-warning');
@@ -430,7 +583,9 @@ const views = {
   'folder': document.getElementById('view-folder'),
   'set-detail': document.getElementById('view-set-detail'),
   'edit-set': document.getElementById('view-edit-set'),
-  'analytics': document.getElementById('view-analytics')
+  'analytics': document.getElementById('view-analytics'),
+  'auth': document.getElementById('view-auth'),
+  'admin': document.getElementById('view-admin')
 };
 
 function showView(viewName) {
@@ -443,6 +598,8 @@ function showView(viewName) {
   // Reset active state in sidebar nav
   document.getElementById('menu-home-btn').classList.remove('active');
   document.getElementById('menu-library-btn').classList.remove('active');
+  document.getElementById('menu-analytics-btn').classList.remove('active');
+  document.getElementById('menu-admin-btn').classList.remove('active');
   
   if (viewName === 'home') {
     document.getElementById('menu-home-btn').classList.add('active');
@@ -453,6 +610,9 @@ function showView(viewName) {
   } else if (viewName === 'analytics') {
     document.getElementById('menu-analytics-btn').classList.add('active');
     initAnalyticsView();
+  } else if (viewName === 'admin') {
+    document.getElementById('menu-admin-btn').classList.add('active');
+    loadAdminDashboard();
   }
 
   // Sidebar shortcut activation
@@ -2391,6 +2551,171 @@ document.getElementById('menu-library-btn').addEventListener('click', () => {
   initFoldersListView();
 });
 
+// Admin panel view trigger
+document.getElementById('menu-admin-btn').addEventListener('click', () => {
+  showView('admin');
+});
+
+// Admin back button
+document.getElementById('admin-back-btn').addEventListener('click', () => {
+  showView('home');
+});
+
+// Logout action
+window.handleLogout = function() {
+  token = null;
+  currentUser = null;
+  localStorage.removeItem('tct_srs_token');
+  localStorage.removeItem('tct_srs_current_user');
+  localStorage.removeItem('tct_srs_offline_mode');
+  
+  document.body.classList.add('not-logged-in');
+  updateUserWidgetUI();
+  
+  showView('auth');
+  showToast('Đã đăng xuất thành công!', 'info');
+};
+
+document.getElementById('sidebar-logout-btn').addEventListener('click', handleLogout);
+
+// Continue Offline Mode (Demo Mode)
+document.getElementById('auth-offline-btn').addEventListener('click', () => {
+  isDemoMode = true;
+  token = null;
+  currentUser = { id: 'guest', username: 'Khách (Offline)', role: 'user' };
+  
+  localStorage.setItem('tct_srs_offline_mode', 'true');
+  localStorage.removeItem('tct_srs_token');
+  localStorage.removeItem('tct_srs_current_user');
+  
+  document.body.classList.remove('not-logged-in');
+  updateUserWidgetUI();
+  switchToDemoMode("Bạn đã chọn học ở Chế độ Offline.");
+  
+  showToast('Đang chạy ở chế độ offline cục bộ.', 'info');
+  showView('home');
+});
+
+// Load Admin Dashboard statistics and user list
+window.loadAdminDashboard = async function() {
+  try {
+    const statsRes = await fetch('/api/admin/stats');
+    if (!statsRes.ok) {
+      if (statsRes.status === 403) {
+        showToast('Bạn không có quyền truy cập bảng quản trị!', 'error');
+        showView('home');
+        return;
+      }
+      throw new Error(`stats response error ${statsRes.status}`);
+    }
+    const stats = await statsRes.json();
+    
+    document.getElementById('ad-total-users').innerText = stats.totalUsers || 0;
+    document.getElementById('ad-total-sets').innerText = stats.totalSets || 0;
+    document.getElementById('ad-total-cards').innerText = stats.totalCards || 0;
+    
+    const kbSize = ((stats.dbSize || 0) / 1024).toFixed(1);
+    document.getElementById('ad-db-size').innerText = `${kbSize} KB`;
+    
+    const uptime = stats.uptimeSeconds || 0;
+    let uptimeStr = '';
+    if (uptime < 60) {
+      uptimeStr = `${uptime}s`;
+    } else if (uptime < 3600) {
+      uptimeStr = `${Math.floor(uptime / 60)}m ${uptime % 60}s`;
+    } else {
+      const hrs = Math.floor(uptime / 3600);
+      const mins = Math.floor((uptime % 3600) / 60);
+      uptimeStr = `${hrs}h ${mins}m`;
+    }
+    document.getElementById('ad-server-uptime').innerText = uptimeStr;
+    
+    const usersRes = await fetch('/api/admin/users');
+    if (!usersRes.ok) throw new Error(`users response error ${usersRes.status}`);
+    const users = await usersRes.json();
+    
+    const tbody = document.getElementById('admin-users-tbody');
+    tbody.innerHTML = '';
+    
+    users.forEach(u => {
+      const tr = document.createElement('tr');
+      const isSelf = u.id === currentUser.id;
+      
+      let actionBtns = '';
+      if (isSelf) {
+        actionBtns = `<span style="font-style: italic; opacity: 0.6;">(Tài khoản của bạn)</span>`;
+      } else {
+        const toggleRoleBtn = u.role === 'admin' 
+          ? `<button class="btn-action-small demote" onclick="changeUserRole('${u.id}', 'user')"><i class="fas fa-user-minus"></i> Hạ quyền</button>`
+          : `<button class="btn-action-small promote" onclick="changeUserRole('${u.id}', 'admin')"><i class="fas fa-user-plus"></i> Thăng quyền</button>`;
+          
+        const deleteBtn = `<button class="btn-action-small delete" onclick="deleteUserAccount('${u.id}', '${escapeHtml(u.username)}')"><i class="fas fa-trash"></i> Xóa</button>`;
+        
+        actionBtns = `<div style="display: flex; gap: 8px;">${toggleRoleBtn} ${deleteBtn}</div>`;
+      }
+      
+      const roleBadge = u.role === 'admin' 
+        ? `<span class="badge-role admin">Admin</span>`
+        : `<span class="badge-role user">User</span>`;
+        
+      tr.innerHTML = `
+        <td><strong>${escapeHtml(u.username)}</strong></td>
+        <td><code>${escapeHtml(u.id)}</code></td>
+        <td>${roleBadge}</td>
+        <td>${actionBtns}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+    
+  } catch (err) {
+    console.error("Lỗi khi tải trang quản trị:", err);
+    showToast('Lỗi tải dữ liệu bảng quản trị!', 'error');
+  }
+};
+
+window.changeUserRole = async function(userId, newRole) {
+  const roleName = newRole === 'admin' ? 'Quản trị viên' : 'Người dùng thường';
+  if (!confirm(`Bạn có chắc chắn muốn thay đổi quyền của tài khoản này thành ${roleName}?`)) return;
+  
+  try {
+    const res = await fetch(`/api/admin/users/${userId}/role`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: newRole })
+    });
+    
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Cập nhật quyền thất bại.');
+    }
+    
+    showToast('Cập nhật quyền thành công!', 'success');
+    loadAdminDashboard();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+};
+
+window.deleteUserAccount = async function(userId, username) {
+  if (!confirm(`CẢNH BÁO CỰC KỲ QUAN TRỌNG!\n\nBạn đang thực hiện xóa tài khoản "${username}". Hành động này sẽ xóa vĩnh viễn tài khoản cùng toàn bộ các học phần, từ vựng và lịch sử học tập của họ trong cơ sở dữ liệu.\n\nHành động này KHÔNG THỂ KHÔI PHỤC.\n\nBạn vẫn muốn tiếp tục chứ?`)) return;
+  
+  try {
+    const res = await fetch(`/api/admin/users/${userId}`, {
+      method: 'DELETE'
+    });
+    
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Xóa tài khoản thất bại.');
+    }
+    
+    showToast(`Đã xóa tài khoản "${username}" thành công!`, 'success');
+    loadAdminDashboard();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+};
+
 // Today's review button
 document.getElementById('start-review-btn').addEventListener('click', () => {
   showSetDetailView('all_due');
@@ -2477,9 +2802,37 @@ function escapeHtml(str) {
 // Initial triggers
 async function startApp() {
   await initializeAppWithTimeout();
-  await initHomeView();
-  initPomodoro();
-  showView('home');
+  
+  const offlineModeFlag = localStorage.getItem('tct_srs_offline_mode') === 'true';
+  
+  if (isDemoMode || offlineModeFlag) {
+    if (!currentUser || currentUser.id !== 'guest') {
+      currentUser = { id: 'guest', username: 'Khách (Offline)', role: 'user' };
+    }
+    isDemoMode = true;
+    document.body.classList.remove('not-logged-in');
+    updateUserWidgetUI();
+    switchToDemoMode(offlineModeFlag ? "Bạn đã chọn học ở Chế độ Offline." : "Không thể kết nối đến Local API Server.");
+    await initHomeView();
+    initPomodoro();
+    showView('home');
+  } else {
+    if (token && currentUser) {
+      document.body.classList.remove('not-logged-in');
+      updateUserWidgetUI();
+      const warningBanner = document.getElementById('firebase-warning');
+      if (warningBanner) warningBanner.classList.add('hidden');
+      
+      await initHomeView();
+      initPomodoro();
+      showView('home');
+    } else {
+      document.body.classList.add('not-logged-in');
+      updateUserWidgetUI();
+      initPomodoro();
+      showView('auth');
+    }
+  }
 }
 
 // ==========================================
@@ -3510,7 +3863,7 @@ window.restoreBackup = async function(filename) {
 
 window.syncLocalToApi = async function() {
   try {
-    const ping = await fetch('/api/folders');
+    const ping = await fetch('/api/status');
     if (!ping.ok) throw new Error('API server unreachable');
   } catch (e) {
     alert("❌ Không thể kết nối với máy chủ API. Hãy chắc chắn rằng file server.ps1 đang chạy!");
@@ -3556,7 +3909,7 @@ window.syncLocalToApi = async function() {
 
 window.syncApiToLocal = async function() {
   try {
-    const ping = await fetch('/api/folders');
+    const ping = await fetch('/api/status');
     if (!ping.ok) throw new Error('API server unreachable');
   } catch (e) {
     alert("❌ Không thể kết nối với máy chủ API. Hãy chắc chắn rằng file server.ps1 đang chạy!");
@@ -3604,7 +3957,7 @@ window.syncApiToLocal = async function() {
 
 window.mergeSync = async function() {
   try {
-    const ping = await fetch('/api/folders');
+    const ping = await fetch('/api/status');
     if (!ping.ok) throw new Error('API server unreachable');
   } catch (e) {
     alert("❌ Không thể kết nối với máy chủ API. Hãy chắc chắn rằng file server.ps1 đang chạy!");

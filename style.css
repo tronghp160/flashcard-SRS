@@ -4696,4 +4696,270 @@ body.dark-mode .pomodoro-widget {
   border-color: rgba(239, 68, 68, 0.2);
 }
 
+/* ==========================================
+   AUTHENTICATION & LOGIN STYLES
+   ========================================== */
+.auth-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 80px);
+  padding: 20px;
+}
+
+.auth-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 40px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  animation: fadeIn 0.4s ease;
+}
+
+.auth-header {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.auth-logo {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.8rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--primary), #8bc34a);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.5px;
+}
+
+.auth-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.auth-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-sub);
+  line-height: 1.5;
+}
+
+.auth-tabs {
+  display: flex;
+  background: var(--bg-input);
+  border-radius: 10px;
+  padding: 4px;
+  border: 1px solid var(--border-color);
+}
+
+.auth-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-sub);
+  padding: 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.auth-tab.active {
+  background: var(--bg-card);
+  color: var(--text-main);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.input-group label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-sub);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: var(--text-sub);
+  font-size: 0.8rem;
+  opacity: 0.6;
+  margin: 4px 0;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px dashed var(--border-color);
+}
+
+.auth-divider span {
+  padding: 0 10px;
+}
+
+/* Sidebar User Widget */
+.sidebar-user-widget {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  margin-top: 14px;
+}
+
+.user-avatar {
+  font-size: 2.2rem;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-meta-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.user-username {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  text-align: left;
+}
+
+.user-role-badge {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 6px;
+  width: fit-content;
+}
+
+.user-role-badge.admin {
+  background: rgba(103, 58, 183, 0.15);
+  color: #b388ff;
+  border: 1px solid rgba(103, 58, 183, 0.3);
+}
+
+.user-role-badge.user {
+  background: rgba(35, 178, 109, 0.15);
+  color: #a7f3d0;
+  border: 1px solid rgba(35, 178, 109, 0.3);
+}
+
+.btn-logout-icon {
+  background: transparent;
+  border: none;
+  color: var(--text-sub);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.btn-logout-icon:hover {
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* User management badges */
+.badge-role {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+  text-transform: uppercase;
+}
+
+.badge-role.admin {
+  background: rgba(103, 58, 183, 0.15);
+  color: #b388ff;
+  border: 1px solid rgba(103, 58, 183, 0.3);
+}
+
+.badge-role.user {
+  background: rgba(35, 178, 109, 0.15);
+  color: #23b26d;
+  border: 1px solid rgba(35, 178, 109, 0.3);
+}
+
+.btn-action-small {
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-action-small.promote {
+  background: rgba(103, 58, 183, 0.1);
+  color: #b388ff;
+  border: 1px solid rgba(103, 58, 183, 0.2);
+}
+
+.btn-action-small.promote:hover {
+  background: var(--primary);
+  color: white;
+}
+
+.btn-action-small.demote {
+  background: rgba(255, 159, 67, 0.1);
+  color: #ff9f43;
+  border: 1px solid rgba(255, 159, 67, 0.2);
+}
+
+.btn-action-small.demote:hover {
+  background: #ff9f43;
+  color: white;
+}
+
+.btn-action-small.delete {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.btn-action-small.delete:hover {
+  background: var(--danger);
+  color: white;
+}
+
 
