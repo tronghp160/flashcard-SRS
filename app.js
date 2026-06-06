@@ -643,8 +643,11 @@ function showView(viewName) {
 // STREAK & GLOBAL STATS
 // ==========================================
 function recordActivity() {
-  let streak = parseInt(localStorage.getItem('study_streak') || '0');
-  const lastStudyStr = localStorage.getItem('last_study_date');
+  const streakKey = typeof getUserKey === 'function' ? getUserKey('study_streak') : 'study_streak';
+  const lastStudyKey = typeof getUserKey === 'function' ? getUserKey('last_study_date') : 'last_study_date';
+  
+  let streak = parseInt(localStorage.getItem(streakKey) || '0');
+  const lastStudyStr = localStorage.getItem(lastStudyKey);
   const today = new Date();
   const todayStr = today.toDateString();
 
@@ -662,10 +665,13 @@ function recordActivity() {
       else if (diffDays > 1) streak = 1;
     }
   }
-  localStorage.setItem('study_streak', streak.toString());
-  localStorage.setItem('last_study_date', today.toISOString());
+  localStorage.setItem(streakKey, streak.toString());
+  localStorage.setItem(lastStudyKey, today.toISOString());
   
-  document.getElementById('sidebar-streak').innerText = streak;
+  const sidebarEl = document.getElementById('sidebar-streak');
+  if (sidebarEl) sidebarEl.innerText = streak;
+  const headerEl = document.getElementById('header-streak-value');
+  if (headerEl) headerEl.innerText = streak;
 }
 
 function renderCharts(allCards) {
@@ -3220,7 +3226,8 @@ async function initAnalyticsView() {
   }
 
   // Summary stats
-  const streak = parseInt(localStorage.getItem('study_streak') || '0');
+  const streakKey = typeof getUserKey === 'function' ? getUserKey('study_streak') : 'study_streak';
+  const streak = parseInt(localStorage.getItem(streakKey) || '0');
   const uniqueDates = [...new Set(log.map(l => l.date))];
   const totalReviews = log.length;
   const goodRatings = log.filter(l => l.rating >= 4).length;
@@ -4503,6 +4510,9 @@ function updateDailyGoalUI(count, target, streak) {
 function updateSidebarStreak(streak) {
   const el = document.getElementById('sidebar-streak');
   if (el) el.innerText = streak !== undefined ? streak : (localStorage.getItem(getUserKey(STREAK_KEY)) || '0');
+
+  const headerEl = document.getElementById('header-streak-value');
+  if (headerEl) headerEl.innerText = streak !== undefined ? streak : (localStorage.getItem(getUserKey(STREAK_KEY)) || '0');
 }
 
 function initDailyGoalUI() {
