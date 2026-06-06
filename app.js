@@ -613,6 +613,12 @@ function showView(viewName) {
   document.getElementById('menu-analytics-btn').classList.remove('active');
   document.getElementById('menu-admin-btn').classList.remove('active');
   
+  if (viewName !== 'set-detail') {
+    document.getElementById('shortcut-flashcards-btn').classList.remove('active');
+    document.getElementById('shortcut-match-btn').classList.remove('active');
+    document.getElementById('shortcut-test-btn').classList.remove('active');
+  }
+
   if (viewName === 'home') {
     document.getElementById('menu-home-btn').classList.add('active');
     initHomeView();
@@ -637,16 +643,36 @@ function showView(viewName) {
   ];
 
   if (activeSetId) {
-    shortcuts.forEach(btn => {
-      btn.disabled = false;
-      btn.style.opacity = '1';
-      btn.style.cursor = 'pointer';
-    });
+    if (activeSetId === 'all_due') {
+      const fcBtn = document.getElementById('shortcut-flashcards-btn');
+      fcBtn.disabled = false;
+      fcBtn.style.opacity = '1';
+      fcBtn.style.cursor = 'pointer';
+
+      const matchBtn = document.getElementById('shortcut-match-btn');
+      matchBtn.disabled = true;
+      matchBtn.style.opacity = '0.5';
+      matchBtn.style.cursor = 'not-allowed';
+      matchBtn.classList.remove('active');
+
+      const testBtn = document.getElementById('shortcut-test-btn');
+      testBtn.disabled = true;
+      testBtn.style.opacity = '0.5';
+      testBtn.style.cursor = 'not-allowed';
+      testBtn.classList.remove('active');
+    } else {
+      shortcuts.forEach(btn => {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+      });
+    }
   } else {
     shortcuts.forEach(btn => {
       btn.disabled = true;
       btn.style.opacity = '0.5';
       btn.style.cursor = 'not-allowed';
+      btn.classList.remove('active');
     });
   }
 }
@@ -1305,9 +1331,15 @@ function selectStudyMode(mode) {
   document.getElementById('subview-match').classList.add('hidden');
   document.getElementById('subview-quiz').classList.add('hidden');
 
+  // Reset active state for shortcuts
+  document.getElementById('shortcut-flashcards-btn').classList.remove('active');
+  document.getElementById('shortcut-match-btn').classList.remove('active');
+  document.getElementById('shortcut-test-btn').classList.remove('active');
+
   if (mode === 'flashcards') {
     document.getElementById('subview-flashcards').classList.remove('hidden');
     document.getElementById('subview-write').classList.add('hidden');
+    document.getElementById('shortcut-flashcards-btn').classList.add('active');
     initFlashcardsSubMode();
   } else if (mode === 'write') {
     document.getElementById('subview-flashcards').classList.add('hidden');
@@ -1319,10 +1351,12 @@ function selectStudyMode(mode) {
     document.getElementById('subview-flashcards').classList.add('hidden');
     document.getElementById('subview-write').classList.add('hidden');
     document.getElementById('subview-match').classList.remove('hidden');
+    document.getElementById('shortcut-match-btn').classList.add('active');
     initMatchSubMode();
   } else if (mode === 'quiz') {
     document.getElementById('subview-quiz').classList.remove('hidden');
     document.getElementById('subview-write').classList.add('hidden');
+    document.getElementById('shortcut-test-btn').classList.add('active');
     initQuizSubMode();
   }
 }
@@ -2963,6 +2997,35 @@ document.getElementById('save-tts-btn').addEventListener('click', async () => {
 });
 
 document.getElementById('tts-settings-btn').addEventListener('click', openTTSModal);
+
+// Sidebar learning shortcuts
+document.getElementById('shortcut-flashcards-btn').addEventListener('click', async () => {
+  if (activeSetId) {
+    if (activeView !== 'set-detail') {
+      await showSetDetailView(activeSetId);
+    }
+    document.getElementById('studyMode').value = 'flashcards';
+    selectStudyMode('flashcards');
+  }
+});
+document.getElementById('shortcut-match-btn').addEventListener('click', async () => {
+  if (activeSetId && activeSetId !== 'all_due') {
+    if (activeView !== 'set-detail') {
+      await showSetDetailView(activeSetId);
+    }
+    document.getElementById('studyMode').value = 'match';
+    selectStudyMode('match');
+  }
+});
+document.getElementById('shortcut-test-btn').addEventListener('click', async () => {
+  if (activeSetId && activeSetId !== 'all_due') {
+    if (activeView !== 'set-detail') {
+      await showSetDetailView(activeSetId);
+    }
+    document.getElementById('studyMode').value = 'quiz';
+    selectStudyMode('quiz');
+  }
+});
 
 // ==========================================
 // STUDY LOG
