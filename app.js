@@ -1460,7 +1460,7 @@ function updateFCCard(direction = 'none') {
   saveResumeSession();
 
   container.style.display = 'flex';
-  actions.style.display = 'flex';
+  actions.style.display = 'none'; // Completely hide rating action buttons
   controls.style.display = 'flex';
   end.style.display = 'none';
 
@@ -1627,7 +1627,7 @@ document.getElementById('prevBtn').addEventListener('click', () => {
 });
 
 document.getElementById('nextBtn').addEventListener('click', () => {
-  if (fcActiveIndex < currentStudyCards.length - 1) {
+  if (fcActiveIndex < currentStudyCards.length) {
     fcActiveIndex++;
     updateFCCard('next');
   }
@@ -1695,11 +1695,6 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.code === 'ArrowRight') document.getElementById('nextBtn').click();
   if (e.code === 'ArrowLeft') document.getElementById('prevBtn').click();
-  
-  if (fcIsFlipped) {
-    if (e.key === '1') { e.preventDefault(); markCardSRS(1); } // Học tiếp
-    if (e.key === '2') { e.preventDefault(); markCardSRS(5); } // Đã thuộc
-  }
 });
 
 // Swipe Gesture logic
@@ -1732,7 +1727,7 @@ function handlePointerEnd() {
       setTimeout(() => {
         fcInner.style.transform = '';
         fcInner.style.opacity = '';
-        markCardSRS(5); // Đã thuộc
+        document.getElementById('prevBtn').click(); // Swipe right -> Go to previous card
       }, 150);
     } else {
       fcInner.style.transform = `translateX(-200px) rotate(-15deg) ${fcIsFlipped ? 'rotateY(180deg)' : ''}`;
@@ -1740,7 +1735,7 @@ function handlePointerEnd() {
       setTimeout(() => {
         fcInner.style.transform = '';
         fcInner.style.opacity = '';
-        markCardSRS(1); // Học tiếp
+        document.getElementById('nextBtn').click(); // Swipe left -> Go to next card
       }, 150);
     }
   } else {
@@ -2816,11 +2811,10 @@ document.getElementById('btn-study-all').addEventListener('click', () => {
 function updateRatingActionsVisibility() {
   const ratingActions = document.getElementById('rating-actions');
   const flipPrompt = document.querySelector('.card-flip-prompt');
+  ratingActions.classList.add('hidden'); // Always hidden
   if (fcIsFlipped) {
-    ratingActions.classList.remove('hidden');
     if (flipPrompt) flipPrompt.style.opacity = '0';
   } else {
-    ratingActions.classList.add('hidden');
     if (flipPrompt) flipPrompt.style.opacity = '0.6';
   }
 }
