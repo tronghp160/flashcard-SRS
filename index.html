@@ -50,6 +50,9 @@
         <button id="menu-analytics-btn" class="nav-btn">
           <i class="fas fa-chart-bar sidebar-icon"></i> <span>Thống kê học tập</span>
         </button>
+        <button id="menu-admin-btn" class="nav-btn hidden">
+          <i class="fas fa-user-shield sidebar-icon"></i> <span>Bảng quản trị</span>
+        </button>
         
         <div class="sidebar-divider"></div>
         
@@ -83,14 +86,6 @@
         </div>
       </div>
 
-      <!-- Streak Widget -->
-      <div class="sidebar-streak-widget">
-        <div class="streak-icon">🔥</div>
-        <div class="streak-info">
-          <div class="streak-text-label">Streak học tập</div>
-          <div class="streak-text-value"><span id="sidebar-streak" class="streak-highlight">0</span> ngày liên tục</div>
-        </div>
-      </div>
 
       <!-- Bottom sidebar tools -->
       <div class="sidebar-bottom-tools">
@@ -100,6 +95,20 @@
         <button id="backup-manager-btn" class="sidebar-tool-btn" title="Quản lý sao lưu">
           <i class="fas fa-database"></i> <span>Sao lưu dữ liệu</span>
         </button>
+        
+        <div class="sidebar-divider"></div>
+        
+        <!-- User Profile widget -->
+        <div id="sidebar-user-widget" class="sidebar-user-widget hidden" style="cursor: pointer;" title="Xem hồ sơ cá nhân">
+          <div id="sidebar-avatar-container" class="user-avatar"><i class="fas fa-user-circle"></i></div>
+          <div class="user-meta-info">
+            <div id="sidebar-username" class="user-username">Username</div>
+            <div id="sidebar-user-role" class="user-role-badge">Role</div>
+          </div>
+          <button id="sidebar-logout-btn" class="btn-logout-icon" title="Đăng xuất">
+            <i class="fas fa-sign-out-alt"></i>
+          </button>
+        </div>
       </div>
     </aside>
 
@@ -123,9 +132,13 @@
             <h1 class="home-title">Chào mừng bạn quay lại!</h1>
             <p class="home-subtitle">Luyện tập từ vựng mỗi ngày để đạt hiệu quả ghi nhớ tốt nhất.</p>
           </div>
-          <button id="quick-seed-btn" class="btn-seed">
-            <i class="fas fa-bolt"></i> Nạp dữ liệu mẫu Con Người
-          </button>
+          <div class="header-streak-widget" title="Chuỗi ngày ôn tập liên tục của bạn">
+            <span class="streak-icon-fire">🔥</span>
+            <div class="streak-meta">
+              <div class="streak-count-row"><span id="header-streak-value">0</span> ngày liên tục</div>
+              <div class="streak-label-sub">Chuỗi học tập</div>
+            </div>
+          </div>
         </div>
 
         <!-- Resume Session Banner -->
@@ -1059,6 +1072,291 @@
           </div>
         </div>
 
+      </section>
+
+      <!-- ================= SECTION 7: AUTHENTICATION VIEW (LOGIN/REGISTER) ================= -->
+      <section id="view-auth" class="view-section hidden">
+        <div class="auth-container">
+          <div class="auth-card">
+            <div class="auth-header">
+              <span class="auth-logo">✨ TCTEnglish</span>
+              <h2 class="auth-title">Chào mừng trở lại!</h2>
+              <p class="auth-subtitle">Đăng nhập hoặc đăng ký để đồng bộ tiến độ học tập</p>
+            </div>
+            
+            <!-- Tab selector -->
+            <div class="auth-tabs">
+              <button id="tab-login-btn" class="auth-tab active" onclick="switchAuthTab('login')">Đăng nhập</button>
+              <button id="tab-register-btn" class="auth-tab" onclick="switchAuthTab('register')">Đăng ký</button>
+            </div>
+            
+            <!-- Login Form -->
+            <form id="auth-login-form" class="auth-form" onsubmit="handleAuthSubmit(event, 'login')">
+              <div class="input-group">
+                <label for="login-username"><i class="fas fa-user"></i> Tên đăng nhập</label>
+                <input type="text" id="login-username" class="modal-input" placeholder="Nhập tên đăng nhập..." required autocomplete="username">
+              </div>
+              <div class="input-group">
+                <label for="login-password"><i class="fas fa-lock"></i> Mật khẩu</label>
+                <input type="password" id="login-password" class="modal-input" placeholder="Nhập mật khẩu..." required autocomplete="current-password">
+              </div>
+              <button type="submit" class="btn-start-review" style="width:100%; margin-top:10px;">
+                <i class="fas fa-sign-in-alt"></i> Đăng nhập
+              </button>
+            </form>
+            
+            <!-- Register Form -->
+            <form id="auth-register-form" class="auth-form hidden" onsubmit="handleAuthSubmit(event, 'register')">
+              <div class="input-group">
+                <label for="register-username"><i class="fas fa-user"></i> Tên đăng nhập</label>
+                <input type="text" id="register-username" class="modal-input" placeholder="Nhập tên đăng nhập mới..." required autocomplete="username">
+              </div>
+              <div class="input-group">
+                <label for="register-password"><i class="fas fa-lock"></i> Mật khẩu</label>
+                <input type="password" id="register-password" class="modal-input" placeholder="Nhập mật khẩu mới..." required autocomplete="new-password">
+              </div>
+              <div class="input-group">
+                <label for="register-confirm-password"><i class="fas fa-check-double"></i> Xác nhận mật khẩu</label>
+                <input type="password" id="register-confirm-password" class="modal-input" placeholder="Nhập lại mật khẩu mới..." required autocomplete="new-password">
+              </div>
+              <button type="submit" class="btn-start-review" style="width:100%; margin-top:10px; background:linear-gradient(135deg,#23b26d,#4cd964);">
+                <i class="fas fa-user-plus"></i> Đăng ký tài khoản
+              </button>
+            </form>
+            
+            <div class="auth-divider">
+              <span>hoặc</span>
+            </div>
+            
+            <button id="auth-offline-btn" class="btn-empty-action" style="width:100%; justify-content:center; margin-top:0;">
+              <i class="fas fa-wifi-slash"></i> Tiếp tục học Offline (Chế độ Demo)
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= SECTION 8: ADMIN DASHBOARD VIEW ================= -->
+      <section id="view-admin" class="view-section hidden">
+        <div class="analytics-header">
+          <button id="admin-back-btn" class="back-link">
+            <i class="fas fa-arrow-left"></i> <span>Quay lại</span>
+          </button>
+          <div>
+            <h1 class="analytics-title"><i class="fas fa-user-shield"></i> Bảng quản trị hệ thống</h1>
+            <p class="analytics-subtitle">Giám sát hệ thống và quản lý tài khoản người dùng</p>
+          </div>
+        </div>
+
+        <!-- Admin stats row -->
+        <div class="analytics-summary-row" style="margin-bottom:24px;">
+          <div class="analytics-stat-card">
+            <div class="analytics-stat-icon" style="background: linear-gradient(135deg,#673ab7,#9c27b0);"><i class="fas fa-users"></i></div>
+            <div>
+              <div class="analytics-stat-val" id="ad-total-users">0</div>
+              <div class="analytics-stat-lbl">Người dùng</div>
+            </div>
+          </div>
+          <div class="analytics-stat-card">
+            <div class="analytics-stat-icon" style="background: linear-gradient(135deg,#4255ff,#6c82ff);"><i class="fas fa-folder-open"></i></div>
+            <div>
+              <div class="analytics-stat-val" id="ad-total-sets">0</div>
+              <div class="analytics-stat-lbl">Học phần</div>
+            </div>
+          </div>
+          <div class="analytics-stat-card">
+            <div class="analytics-stat-icon" style="background: linear-gradient(135deg,#23b26d,#4cd964);"><i class="fas fa-clone"></i></div>
+            <div>
+              <div class="analytics-stat-val" id="ad-total-cards">0</div>
+              <div class="analytics-stat-lbl">Tổng số thẻ</div>
+            </div>
+          </div>
+          <div class="analytics-stat-card">
+            <div class="analytics-stat-icon" style="background: linear-gradient(135deg,#ff9f43,#ffcd1f);"><i class="fas fa-hdd"></i></div>
+            <div>
+              <div class="analytics-stat-val" id="ad-db-size">0 KB</div>
+              <div class="analytics-stat-lbl">Kích thước DB</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- System info & uptime -->
+        <div class="analytics-card" style="margin-bottom: 24px;">
+          <h3 class="analytics-card-title"><i class="fas fa-info-circle"></i> Trạng thái Máy chủ API</h3>
+          <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:20px; font-size:0.9rem; padding: 6px 0;">
+            <div><span>Địa chỉ kết nối: </span><strong style="color:var(--primary);">http://localhost:8080/</strong></div>
+            <div><span>Uptime Máy chủ: </span><strong id="ad-server-uptime" style="color:var(--success);">0s</strong></div>
+            <div><span>Cơ sở dữ liệu: </span><strong style="color:var(--text-main);">database.json</strong></div>
+          </div>
+        </div>
+
+        <!-- Users management table -->
+        <div class="analytics-card">
+          <h3 class="analytics-card-title"><i class="fas fa-users-cog"></i> Quản lý người dùng</h3>
+          <div class="hard-words-table-wrapper">
+            <table class="hard-words-table">
+              <thead>
+                <tr>
+                  <th>Tên đăng nhập</th>
+                  <th>ID Người dùng</th>
+                  <th>Vai trò</th>
+                  <th>Hành động</th>
+                </tr>
+              </thead>
+              <tbody id="admin-users-tbody">
+                <!-- Dynamic user list will load here -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= SECTION 9: USER PROFILE VIEW ================= -->
+      <section id="view-profile" class="view-section hidden">
+        <div class="analytics-header">
+          <button onclick="showView('home')" class="back-link">
+            <i class="fas fa-arrow-left"></i> <span>Quay lại</span>
+          </button>
+          <div>
+            <h1 class="analytics-title"><i class="fas fa-user-circle"></i> Hồ sơ cá nhân</h1>
+            <p class="analytics-subtitle">Quản lý thông tin tài khoản, mật khẩu và cấu hình học tập</p>
+          </div>
+        </div>
+
+        <div class="profile-layout" style="display: flex; gap: 24px; margin-top: 24px; flex-wrap: wrap;">
+          <!-- Left Column (User stats) -->
+          <div class="profile-left-col" style="flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 24px;">
+            <div class="stats-container" style="display: flex; flex-direction: column; align-items: center; padding: 32px 24px; text-align: center;">
+              <div class="profile-avatar-wrapper" style="position: relative; width: 120px; height: 120px; margin-bottom: 16px;">
+                <div id="profile-avatar-display" class="user-avatar" style="width: 120px; height: 120px; font-size: 4rem; display: flex; align-items: center; justify-content: center; background: var(--bg-input); border-radius: 50%; overflow: hidden; border: 3px solid var(--border-color);">
+                  <i class="fas fa-user-circle"></i>
+                </div>
+                <button id="profile-avatar-btn" class="btn-avatar-upload" style="position: absolute; bottom: 0; right: 0; background: var(--primary); color: white; border: none; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: var(--transition); box-shadow: 0 4px 10px rgba(0,0,0,0.2);" title="Tải ảnh đại diện">
+                  <i class="fas fa-camera"></i>
+                </button>
+                <input type="file" id="profile-avatar-file" accept="image/*" class="hidden">
+              </div>
+              <h2 id="profile-display-username" style="font-size: 1.5rem; font-weight: 800; color: var(--text-main); margin-bottom: 6px;">Username</h2>
+              <span id="profile-display-role" class="user-role-badge" style="margin-bottom: 24px;">Role</span>
+              
+              <div class="profile-stats-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 100%;">
+                <div style="background: var(--bg-input); padding: 14px; border-radius: 14px; text-align: center; border: 1px solid var(--border-color);">
+                  <div id="profile-stat-streak" style="font-size: 1.6rem; font-weight: 800; color: #ff9f0a;">0</div>
+                  <div style="font-size: 0.75rem; color: var(--text-sub); margin-top: 4px; font-weight: 600; text-transform: uppercase;">Streak ngày</div>
+                </div>
+                <div style="background: var(--bg-input); padding: 14px; border-radius: 14px; text-align: center; border: 1px solid var(--border-color);">
+                  <div id="profile-stat-folders" style="font-size: 1.6rem; font-weight: 800; color: var(--primary);">0</div>
+                  <div style="font-size: 0.75rem; color: var(--text-sub); margin-top: 4px; font-weight: 600; text-transform: uppercase;">Thư mục</div>
+                </div>
+                <div style="background: var(--bg-input); padding: 14px; border-radius: 14px; text-align: center; border: 1px solid var(--border-color);">
+                  <div id="profile-stat-sets" style="font-size: 1.6rem; font-weight: 800; color: var(--success);">0</div>
+                  <div style="font-size: 0.75rem; color: var(--text-sub); margin-top: 4px; font-weight: 600; text-transform: uppercase;">Học phần</div>
+                </div>
+                <div style="background: var(--bg-input); padding: 14px; border-radius: 14px; text-align: center; border: 1px solid var(--border-color);">
+                  <div id="profile-stat-cards" style="font-size: 1.6rem; font-weight: 800; color: #ff6b6b;">0</div>
+                  <div style="font-size: 0.75rem; color: var(--text-sub); margin-top: 4px; font-weight: 600; text-transform: uppercase;">Từ vựng</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column (Forms) -->
+          <div class="profile-right-col" style="flex: 2; min-width: 300px; display: flex; flex-direction: column; gap: 24px;">
+            <!-- Update username & password -->
+            <div id="profile-online-forms-box" class="stats-container" style="padding: 24px; display: flex; flex-direction: column; gap: 24px;">
+              <div>
+                <h3 style="font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px;"><i class="fas fa-user-edit" style="color:var(--primary);"></i> Cập nhật thông tin tài khoản</h3>
+                <p style="font-size: 0.82rem; color: var(--text-sub); margin-top: 4px;">Thay đổi tên đăng nhập tài khoản của bạn</p>
+              </div>
+              <form id="profile-username-form" style="display:flex; flex-direction:column; gap:16px;">
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                  <label for="profile-input-username" style="font-size: 0.8rem; font-weight: 700; color: var(--text-sub);">Tên đăng nhập mới</label>
+                  <input type="text" id="profile-input-username" class="modal-input" style="margin:0;" required>
+                </div>
+                <button type="submit" class="btn-start-review" style="align-self: flex-start; padding: 10px 24px; border-radius: 12px; font-size:0.82rem; height:auto; width:auto; opacity:1;"><i class="fas fa-save"></i> Cập nhật</button>
+              </form>
+              
+              <div style="border-bottom: 1px solid var(--border-color); margin: 8px 0;"></div>
+
+              <div>
+                <h3 style="font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px;"><i class="fas fa-key" style="color:#ffcd1f;"></i> Đổi mật khẩu bảo mật</h3>
+                <p style="font-size: 0.82rem; color: var(--text-sub); margin-top: 4px;">Thay đổi mật khẩu đăng nhập của bạn</p>
+              </div>
+              <form id="profile-pwd-form" style="display:flex; flex-direction:column; gap:16px;">
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                  <label for="profile-pwd-curr" style="font-size: 0.8rem; font-weight: 700; color: var(--text-sub);">Mật khẩu hiện tại</label>
+                  <input type="password" id="profile-pwd-curr" class="modal-input" style="margin:0;" required>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                  <label for="profile-pwd-new" style="font-size: 0.8rem; font-weight: 700; color: var(--text-sub);">Mật khẩu mới</label>
+                  <input type="password" id="profile-pwd-new" class="modal-input" style="margin:0;" minlength="6" required>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                  <label for="profile-pwd-conf" style="font-size: 0.8rem; font-weight: 700; color: var(--text-sub);">Xác nhận mật khẩu mới</label>
+                  <input type="password" id="profile-pwd-conf" class="modal-input" style="margin:0;" minlength="6" required>
+                </div>
+                <button type="submit" class="btn-start-review" style="align-self: flex-start; padding: 10px 24px; border-radius: 12px; font-size:0.82rem; height:auto; width:auto; opacity:1;"><i class="fas fa-shield-alt"></i> Thay đổi mật khẩu</button>
+              </form>
+            </div>
+
+            <!-- Offline warning (hidden when online) -->
+            <div id="profile-offline-warning" class="stats-container hidden" style="padding:24px; border-left: 4px solid var(--danger);">
+              <div style="display:flex; gap:12px; align-items:center;">
+                <i class="fas fa-exclamation-circle" style="color:var(--danger); font-size:1.5rem;"></i>
+                <div>
+                  <h4 style="font-weight:700;">Chế độ Offline (Demo) đang được bật</h4>
+                  <p style="font-size:0.82rem; color:var(--text-sub); margin-top:4px;">Bạn đang học ở chế độ cục bộ (không máy chủ). Các chức năng đổi tên, mật khẩu và ảnh đại diện tạm thời bị khóa cho đến khi khởi chạy server.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Application Settings -->
+            <div class="stats-container" style="padding: 24px; display: flex; flex-direction: column; gap: 24px;">
+              <div>
+                <h3 style="font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px;"><i class="fas fa-sliders-h" style="color:var(--success);"></i> Cài đặt ứng dụng</h3>
+                <p style="font-size: 0.82rem; color: var(--text-sub); margin-top: 4px;">Cấu hình giọng nói, âm thanh phản hồi và chế độ tự động</p>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:16px;">
+                <div class="tts-setting-row" style="display:flex; justify-content:space-between; align-items:center;">
+                  <label class="tts-setting-label" style="font-weight: 600;">Bật phát âm (TTS)</label>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="profile-setting-tts-enabled">
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+                <div class="tts-setting-row" style="display:flex; justify-content:space-between; align-items:center;">
+                  <label class="tts-setting-label" style="font-weight: 600;">Tự động phát khi lật thẻ</label>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="profile-setting-tts-autoflip">
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+                <div class="tts-setting-row" style="display:flex; justify-content:space-between; align-items:center;">
+                  <label class="tts-setting-label" style="font-weight: 600;">Âm thanh phản hồi (Đúng/Sai/Lật)</label>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="profile-setting-audio-feedback">
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+                <div class="tts-setting-row" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                  <label class="tts-setting-label" style="font-weight: 600;">Tốc độ đọc</label>
+                  <div style="display:flex; align-items:center; gap:10px; min-width:200px;">
+                    <input type="range" id="profile-setting-tts-rate" min="0.5" max="2" step="0.1" value="0.9" style="flex:1;">
+                    <span id="profile-setting-tts-rate-label" style="font-weight:700; min-width:32px;">0.9x</span>
+                  </div>
+                </div>
+                <div class="tts-setting-row" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                  <label class="tts-setting-label" style="font-weight: 600;">Giọng đọc tiếng Anh</label>
+                  <select id="profile-setting-tts-voice" class="study-mode-select" style="margin:0; width:150px;">
+                    <option value="en-US">🇺🇸 English (US)</option>
+                    <option value="en-GB">🇬🇧 English (UK)</option>
+                    <option value="en-AU">🇦🇺 English (AU)</option>
+                  </select>
+                </div>
+                <button id="profile-save-settings-btn" class="btn-start-review" style="align-self: flex-start; padding: 10px 24px; border-radius: 12px; font-size:0.82rem; height:auto; width:auto; opacity:1;"><i class="fas fa-save"></i> Lưu cài đặt</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
     </main>

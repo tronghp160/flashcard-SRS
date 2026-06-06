@@ -3,9 +3,173 @@
 // ==========================================
 let isDemoMode = true;
 
+// Session & Authentication State
+let token = localStorage.getItem('tct_srs_token') || null;
+let currentUser = null;
+try {
+  const userStr = localStorage.getItem('tct_srs_current_user');
+  if (userStr) currentUser = JSON.parse(userStr);
+} catch (e) {
+  console.error("Error parsing current user:", e);
+}
+
+// Intercept fetch requests to append Authorization header (only for local API calls to prevent CORS preflight issues with external APIs)
+const originalFetch = window.fetch;
+window.fetch = async function(url, options) {
+  options = options || {};
+  options.headers = options.headers || {};
+  const urlStr = typeof url === 'string' ? url : (url && url.href ? url.href : String(url));
+  const isLocalApi = urlStr.startsWith('/') || urlStr.startsWith(window.location.origin);
+  if (isLocalApi && token && !options.headers['Authorization']) {
+    options.headers['Authorization'] = `Bearer ${token}`;
+  }
+  return originalFetch(url, options);
+};
+
+// Switch auth tabs (Login / Register)
+window.switchAuthTab = function(tab) {
+  const loginForm = document.getElementById('auth-login-form');
+  const registerForm = document.getElementById('auth-register-form');
+  const loginBtn = document.getElementById('tab-login-btn');
+  const registerBtn = document.getElementById('tab-register-btn');
+  
+  if (tab === 'login') {
+    loginForm.classList.remove('hidden');
+    registerForm.classList.add('hidden');
+    loginBtn.classList.add('active');
+    registerBtn.classList.remove('active');
+  } else {
+    loginForm.classList.add('hidden');
+    registerForm.classList.remove('hidden');
+    loginBtn.classList.remove('active');
+    registerBtn.classList.add('active');
+  }
+};
+
+// Handle Authentication Forms Submission
+window.handleAuthSubmit = async function(event, type) {
+  event.preventDefault();
+  
+  if (type === 'login') {
+    const usernameInput = document.getElementById('login-username');
+    const passwordInput = document.getElementById('login-password');
+    const username = usernameInput.value.trim();
+    const password = passwordInput.value;
+    
+    try {
+      const res = await originalFetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Đăng nhập thất bại.');
+      }
+      
+      const data = await res.json();
+      token = data.token;
+      currentUser = data.user;
+      
+      localStorage.setItem('tct_srs_token', token);
+      localStorage.setItem('tct_srs_current_user', JSON.stringify(currentUser));
+      localStorage.removeItem('tct_srs_offline_mode'); // Clear offline flag
+      isDemoMode = false;
+      
+      showToast('Đăng nhập thành công!', 'success');
+      
+      // Update UI elements
+      document.body.classList.remove('not-logged-in');
+      updateUserWidgetUI();
+      
+      // Route to Home View
+      showView('home');
+      
+      // Clear inputs
+      usernameInput.value = '';
+      passwordInput.value = '';
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  } else if (type === 'register') {
+    const usernameInput = document.getElementById('register-username');
+    const passwordInput = document.getElementById('register-password');
+    const confirmPasswordInput = document.getElementById('register-confirm-password');
+    const username = usernameInput.value.trim();
+    const password = passwordInput.value;
+    const confirmPassword = confirmPasswordInput.value;
+    
+    if (password !== confirmPassword) {
+      showToast('Mật khẩu xác nhận không khớp!', 'error');
+      return;
+    }
+    
+    try {
+      const res = await originalFetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Đăng ký thất bại.');
+      }
+      
+      showToast('Đăng ký thành công! Hãy đăng nhập.', 'success');
+      
+      // Switch to login tab and auto-fill username
+      switchAuthTab('login');
+      document.getElementById('login-username').value = username;
+      document.getElementById('login-password').focus();
+      
+      // Clear inputs
+      usernameInput.value = '';
+      passwordInput.value = '';
+      confirmPasswordInput.value = '';
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  }
+};
+
+// Update sidebar user profile widget
+function updateUserWidgetUI() {
+  const widget = document.getElementById('sidebar-user-widget');
+  const adminBtn = document.getElementById('menu-admin-btn');
+  
+  if (currentUser) {
+    widget.classList.remove('hidden');
+    document.getElementById('sidebar-username').innerText = currentUser.username;
+    
+    const roleEl = document.getElementById('sidebar-user-role');
+    roleEl.innerText = currentUser.role;
+    roleEl.className = `user-role-badge ${currentUser.role}`;
+    
+    const avatarContainer = document.getElementById('sidebar-avatar-container');
+    if (avatarContainer) {
+      if (currentUser.avatarUrl) {
+        avatarContainer.innerHTML = `<img src="${currentUser.avatarUrl}" alt="Avatar" class="user-avatar-img">`;
+      } else {
+        avatarContainer.innerHTML = `<i class="fas fa-user-circle"></i>`;
+      }
+    }
+    
+    if (currentUser.role === 'admin' && !isDemoMode) {
+      adminBtn.classList.remove('hidden');
+    } else {
+      adminBtn.classList.add('hidden');
+    }
+  } else {
+    widget.classList.add('hidden');
+    adminBtn.classList.add('hidden');
+  }
+}
+
 async function initializeAppWithTimeout() {
   try {
-    const response = await fetch('/api/folders');
+    const response = await fetch('/api/status');
     if (response.ok) {
       isDemoMode = false;
       const warningBanner = document.getElementById('firebase-warning');
@@ -430,7 +594,10 @@ const views = {
   'folder': document.getElementById('view-folder'),
   'set-detail': document.getElementById('view-set-detail'),
   'edit-set': document.getElementById('view-edit-set'),
-  'analytics': document.getElementById('view-analytics')
+  'analytics': document.getElementById('view-analytics'),
+  'auth': document.getElementById('view-auth'),
+  'admin': document.getElementById('view-admin'),
+  'profile': document.getElementById('view-profile')
 };
 
 function showView(viewName) {
@@ -443,7 +610,15 @@ function showView(viewName) {
   // Reset active state in sidebar nav
   document.getElementById('menu-home-btn').classList.remove('active');
   document.getElementById('menu-library-btn').classList.remove('active');
+  document.getElementById('menu-analytics-btn').classList.remove('active');
+  document.getElementById('menu-admin-btn').classList.remove('active');
   
+  if (viewName !== 'set-detail') {
+    document.getElementById('shortcut-flashcards-btn').classList.remove('active');
+    document.getElementById('shortcut-match-btn').classList.remove('active');
+    document.getElementById('shortcut-test-btn').classList.remove('active');
+  }
+
   if (viewName === 'home') {
     document.getElementById('menu-home-btn').classList.add('active');
     initHomeView();
@@ -453,6 +628,11 @@ function showView(viewName) {
   } else if (viewName === 'analytics') {
     document.getElementById('menu-analytics-btn').classList.add('active');
     initAnalyticsView();
+  } else if (viewName === 'admin') {
+    document.getElementById('menu-admin-btn').classList.add('active');
+    loadAdminDashboard();
+  } else if (viewName === 'profile') {
+    initProfileView();
   }
 
   // Sidebar shortcut activation
@@ -463,16 +643,36 @@ function showView(viewName) {
   ];
 
   if (activeSetId) {
-    shortcuts.forEach(btn => {
-      btn.disabled = false;
-      btn.style.opacity = '1';
-      btn.style.cursor = 'pointer';
-    });
+    if (activeSetId === 'all_due') {
+      const fcBtn = document.getElementById('shortcut-flashcards-btn');
+      fcBtn.disabled = false;
+      fcBtn.style.opacity = '1';
+      fcBtn.style.cursor = 'pointer';
+
+      const matchBtn = document.getElementById('shortcut-match-btn');
+      matchBtn.disabled = true;
+      matchBtn.style.opacity = '0.5';
+      matchBtn.style.cursor = 'not-allowed';
+      matchBtn.classList.remove('active');
+
+      const testBtn = document.getElementById('shortcut-test-btn');
+      testBtn.disabled = true;
+      testBtn.style.opacity = '0.5';
+      testBtn.style.cursor = 'not-allowed';
+      testBtn.classList.remove('active');
+    } else {
+      shortcuts.forEach(btn => {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+      });
+    }
   } else {
     shortcuts.forEach(btn => {
       btn.disabled = true;
       btn.style.opacity = '0.5';
       btn.style.cursor = 'not-allowed';
+      btn.classList.remove('active');
     });
   }
 }
@@ -481,8 +681,11 @@ function showView(viewName) {
 // STREAK & GLOBAL STATS
 // ==========================================
 function recordActivity() {
-  let streak = parseInt(localStorage.getItem('study_streak') || '0');
-  const lastStudyStr = localStorage.getItem('last_study_date');
+  const streakKey = typeof getUserKey === 'function' ? getUserKey('study_streak') : 'study_streak';
+  const lastStudyKey = typeof getUserKey === 'function' ? getUserKey('last_study_date') : 'last_study_date';
+  
+  let streak = parseInt(localStorage.getItem(streakKey) || '0');
+  const lastStudyStr = localStorage.getItem(lastStudyKey);
   const today = new Date();
   const todayStr = today.toDateString();
 
@@ -500,10 +703,13 @@ function recordActivity() {
       else if (diffDays > 1) streak = 1;
     }
   }
-  localStorage.setItem('study_streak', streak.toString());
-  localStorage.setItem('last_study_date', today.toISOString());
+  localStorage.setItem(streakKey, streak.toString());
+  localStorage.setItem(lastStudyKey, today.toISOString());
   
-  document.getElementById('sidebar-streak').innerText = streak;
+  const sidebarEl = document.getElementById('sidebar-streak');
+  if (sidebarEl) sidebarEl.innerText = streak;
+  const headerEl = document.getElementById('header-streak-value');
+  if (headerEl) headerEl.innerText = streak;
 }
 
 function renderCharts(allCards) {
@@ -724,21 +930,23 @@ async function initHomeView() {
 }
 
 // Quick seed action
-document.getElementById('quick-seed-btn').addEventListener('click', async () => {
-  const btn = document.getElementById('quick-seed-btn');
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang nạp dữ liệu...';
-  try {
-    await seedDemoData();
-    alert("Nạp thành công thư mục 'human-con người' cùng 2 học phần mẫu (Leg, Arm)!");
-    initHomeView();
-  } catch(e) {
-    alert("Lỗi nạp dữ liệu mẫu");
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-bolt"></i> Nạp dữ liệu mẫu Con Người';
-  }
-});
+const quickSeedBtn = document.getElementById('quick-seed-btn');
+if (quickSeedBtn) {
+  quickSeedBtn.addEventListener('click', async () => {
+    quickSeedBtn.disabled = true;
+    quickSeedBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang nạp dữ liệu...';
+    try {
+      await seedDemoData();
+      alert("Nạp thành công thư mục 'human-con người' cùng 2 học phần mẫu (Leg, Arm)!");
+      initHomeView();
+    } catch(e) {
+      alert("Lỗi nạp dữ liệu mẫu");
+    } finally {
+      quickSeedBtn.disabled = false;
+      quickSeedBtn.innerHTML = '<i class="fas fa-bolt"></i> Nạp dữ liệu mẫu Con Người';
+    }
+  });
+}
 
 // ==========================================
 // 2. FOLDERS LIST VIEW
@@ -1123,9 +1331,15 @@ function selectStudyMode(mode) {
   document.getElementById('subview-match').classList.add('hidden');
   document.getElementById('subview-quiz').classList.add('hidden');
 
+  // Reset active state for shortcuts
+  document.getElementById('shortcut-flashcards-btn').classList.remove('active');
+  document.getElementById('shortcut-match-btn').classList.remove('active');
+  document.getElementById('shortcut-test-btn').classList.remove('active');
+
   if (mode === 'flashcards') {
     document.getElementById('subview-flashcards').classList.remove('hidden');
     document.getElementById('subview-write').classList.add('hidden');
+    document.getElementById('shortcut-flashcards-btn').classList.add('active');
     initFlashcardsSubMode();
   } else if (mode === 'write') {
     document.getElementById('subview-flashcards').classList.add('hidden');
@@ -1137,10 +1351,12 @@ function selectStudyMode(mode) {
     document.getElementById('subview-flashcards').classList.add('hidden');
     document.getElementById('subview-write').classList.add('hidden');
     document.getElementById('subview-match').classList.remove('hidden');
+    document.getElementById('shortcut-match-btn').classList.add('active');
     initMatchSubMode();
   } else if (mode === 'quiz') {
     document.getElementById('subview-quiz').classList.remove('hidden');
     document.getElementById('subview-write').classList.add('hidden');
+    document.getElementById('shortcut-test-btn').classList.add('active');
     initQuizSubMode();
   }
 }
@@ -2391,6 +2607,177 @@ document.getElementById('menu-library-btn').addEventListener('click', () => {
   initFoldersListView();
 });
 
+// Admin panel view trigger
+document.getElementById('menu-admin-btn').addEventListener('click', () => {
+  showView('admin');
+});
+
+// Admin back button
+document.getElementById('admin-back-btn').addEventListener('click', () => {
+  showView('home');
+});
+
+// Logout action
+window.handleLogout = function() {
+  token = null;
+  currentUser = null;
+  localStorage.removeItem('tct_srs_token');
+  localStorage.removeItem('tct_srs_current_user');
+  localStorage.removeItem('tct_srs_offline_mode');
+  
+  document.body.classList.add('not-logged-in');
+  updateUserWidgetUI();
+  
+  showView('auth');
+  showToast('Đã đăng xuất thành công!', 'info');
+};
+
+document.getElementById('sidebar-logout-btn').addEventListener('click', handleLogout);
+
+// Navigate to Profile view when clicking user widget
+document.getElementById('sidebar-user-widget').addEventListener('click', (e) => {
+  if (e.target.closest('#sidebar-logout-btn')) return; // Ignore logout
+  showView('profile');
+});
+
+// Continue Offline Mode (Demo Mode)
+document.getElementById('auth-offline-btn').addEventListener('click', () => {
+  isDemoMode = true;
+  token = null;
+  currentUser = { id: 'guest', username: 'Khách (Offline)', role: 'user' };
+  
+  localStorage.setItem('tct_srs_offline_mode', 'true');
+  localStorage.removeItem('tct_srs_token');
+  localStorage.removeItem('tct_srs_current_user');
+  
+  document.body.classList.remove('not-logged-in');
+  updateUserWidgetUI();
+  switchToDemoMode("Bạn đã chọn học ở Chế độ Offline.");
+  
+  showToast('Đang chạy ở chế độ offline cục bộ.', 'info');
+  showView('home');
+});
+
+// Load Admin Dashboard statistics and user list
+window.loadAdminDashboard = async function() {
+  try {
+    const statsRes = await fetch('/api/admin/stats');
+    if (!statsRes.ok) {
+      if (statsRes.status === 403) {
+        showToast('Bạn không có quyền truy cập bảng quản trị!', 'error');
+        showView('home');
+        return;
+      }
+      throw new Error(`stats response error ${statsRes.status}`);
+    }
+    const stats = await statsRes.json();
+    
+    document.getElementById('ad-total-users').innerText = stats.totalUsers || 0;
+    document.getElementById('ad-total-sets').innerText = stats.totalSets || 0;
+    document.getElementById('ad-total-cards').innerText = stats.totalCards || 0;
+    
+    const kbSize = ((stats.dbSize || 0) / 1024).toFixed(1);
+    document.getElementById('ad-db-size').innerText = `${kbSize} KB`;
+    
+    const uptime = stats.uptimeSeconds || 0;
+    let uptimeStr = '';
+    if (uptime < 60) {
+      uptimeStr = `${uptime}s`;
+    } else if (uptime < 3600) {
+      uptimeStr = `${Math.floor(uptime / 60)}m ${uptime % 60}s`;
+    } else {
+      const hrs = Math.floor(uptime / 3600);
+      const mins = Math.floor((uptime % 3600) / 60);
+      uptimeStr = `${hrs}h ${mins}m`;
+    }
+    document.getElementById('ad-server-uptime').innerText = uptimeStr;
+    
+    const usersRes = await fetch('/api/admin/users');
+    if (!usersRes.ok) throw new Error(`users response error ${usersRes.status}`);
+    const users = await usersRes.json();
+    
+    const tbody = document.getElementById('admin-users-tbody');
+    tbody.innerHTML = '';
+    
+    users.forEach(u => {
+      const tr = document.createElement('tr');
+      const isSelf = u.id === currentUser.id;
+      
+      let actionBtns = '';
+      if (isSelf) {
+        actionBtns = `<span style="font-style: italic; opacity: 0.6;">(Tài khoản của bạn)</span>`;
+      } else {
+        const toggleRoleBtn = u.role === 'admin' 
+          ? `<button class="btn-action-small demote" onclick="changeUserRole('${u.id}', 'user')"><i class="fas fa-user-minus"></i> Hạ quyền</button>`
+          : `<button class="btn-action-small promote" onclick="changeUserRole('${u.id}', 'admin')"><i class="fas fa-user-plus"></i> Thăng quyền</button>`;
+          
+        const deleteBtn = `<button class="btn-action-small delete" onclick="deleteUserAccount('${u.id}', '${escapeHtml(u.username)}')"><i class="fas fa-trash"></i> Xóa</button>`;
+        
+        actionBtns = `<div style="display: flex; gap: 8px;">${toggleRoleBtn} ${deleteBtn}</div>`;
+      }
+      
+      const roleBadge = u.role === 'admin' 
+        ? `<span class="badge-role admin">Admin</span>`
+        : `<span class="badge-role user">User</span>`;
+        
+      tr.innerHTML = `
+        <td><strong>${escapeHtml(u.username)}</strong></td>
+        <td><code>${escapeHtml(u.id)}</code></td>
+        <td>${roleBadge}</td>
+        <td>${actionBtns}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+    
+  } catch (err) {
+    console.error("Lỗi khi tải trang quản trị:", err);
+    showToast('Lỗi tải dữ liệu bảng quản trị!', 'error');
+  }
+};
+
+window.changeUserRole = async function(userId, newRole) {
+  const roleName = newRole === 'admin' ? 'Quản trị viên' : 'Người dùng thường';
+  if (!confirm(`Bạn có chắc chắn muốn thay đổi quyền của tài khoản này thành ${roleName}?`)) return;
+  
+  try {
+    const res = await fetch(`/api/admin/users/${userId}/role`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: newRole })
+    });
+    
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Cập nhật quyền thất bại.');
+    }
+    
+    showToast('Cập nhật quyền thành công!', 'success');
+    loadAdminDashboard();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+};
+
+window.deleteUserAccount = async function(userId, username) {
+  if (!confirm(`CẢNH BÁO CỰC KỲ QUAN TRỌNG!\n\nBạn đang thực hiện xóa tài khoản "${username}". Hành động này sẽ xóa vĩnh viễn tài khoản cùng toàn bộ các học phần, từ vựng và lịch sử học tập của họ trong cơ sở dữ liệu.\n\nHành động này KHÔNG THỂ KHÔI PHỤC.\n\nBạn vẫn muốn tiếp tục chứ?`)) return;
+  
+  try {
+    const res = await fetch(`/api/admin/users/${userId}`, {
+      method: 'DELETE'
+    });
+    
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Xóa tài khoản thất bại.');
+    }
+    
+    showToast(`Đã xóa tài khoản "${username}" thành công!`, 'success');
+    loadAdminDashboard();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+};
+
 // Today's review button
 document.getElementById('start-review-btn').addEventListener('click', () => {
   showSetDetailView('all_due');
@@ -2477,9 +2864,37 @@ function escapeHtml(str) {
 // Initial triggers
 async function startApp() {
   await initializeAppWithTimeout();
-  await initHomeView();
-  initPomodoro();
-  showView('home');
+  
+  const offlineModeFlag = localStorage.getItem('tct_srs_offline_mode') === 'true';
+  
+  if (isDemoMode || offlineModeFlag) {
+    if (!currentUser || currentUser.id !== 'guest') {
+      currentUser = { id: 'guest', username: 'Khách (Offline)', role: 'user' };
+    }
+    isDemoMode = true;
+    document.body.classList.remove('not-logged-in');
+    updateUserWidgetUI();
+    switchToDemoMode(offlineModeFlag ? "Bạn đã chọn học ở Chế độ Offline." : "Không thể kết nối đến Local API Server.");
+    await initHomeView();
+    initPomodoro();
+    showView('home');
+  } else {
+    if (token && currentUser) {
+      document.body.classList.remove('not-logged-in');
+      updateUserWidgetUI();
+      const warningBanner = document.getElementById('firebase-warning');
+      if (warningBanner) warningBanner.classList.add('hidden');
+      
+      await initHomeView();
+      initPomodoro();
+      showView('home');
+    } else {
+      document.body.classList.add('not-logged-in');
+      updateUserWidgetUI();
+      initPomodoro();
+      showView('auth');
+    }
+  }
 }
 
 // ==========================================
@@ -2582,6 +2997,35 @@ document.getElementById('save-tts-btn').addEventListener('click', async () => {
 });
 
 document.getElementById('tts-settings-btn').addEventListener('click', openTTSModal);
+
+// Sidebar learning shortcuts
+document.getElementById('shortcut-flashcards-btn').addEventListener('click', async () => {
+  if (activeSetId) {
+    if (activeView !== 'set-detail') {
+      await showSetDetailView(activeSetId);
+    }
+    document.getElementById('studyMode').value = 'flashcards';
+    selectStudyMode('flashcards');
+  }
+});
+document.getElementById('shortcut-match-btn').addEventListener('click', async () => {
+  if (activeSetId && activeSetId !== 'all_due') {
+    if (activeView !== 'set-detail') {
+      await showSetDetailView(activeSetId);
+    }
+    document.getElementById('studyMode').value = 'match';
+    selectStudyMode('match');
+  }
+});
+document.getElementById('shortcut-test-btn').addEventListener('click', async () => {
+  if (activeSetId && activeSetId !== 'all_due') {
+    if (activeView !== 'set-detail') {
+      await showSetDetailView(activeSetId);
+    }
+    document.getElementById('studyMode').value = 'quiz';
+    selectStudyMode('quiz');
+  }
+});
 
 // ==========================================
 // STUDY LOG
@@ -2850,7 +3294,6 @@ let forecastChart30Instance = null;
 let ratingDistChartInstance = null;
 
 async function initAnalyticsView() {
-  showView('analytics');
   await renderSidebar();
 
   const log = await getStudyLog();
@@ -2865,7 +3308,8 @@ async function initAnalyticsView() {
   }
 
   // Summary stats
-  const streak = parseInt(localStorage.getItem('study_streak') || '0');
+  const streakKey = typeof getUserKey === 'function' ? getUserKey('study_streak') : 'study_streak';
+  const streak = parseInt(localStorage.getItem(streakKey) || '0');
   const uniqueDates = [...new Set(log.map(l => l.date))];
   const totalReviews = log.length;
   const goodRatings = log.filter(l => l.rating >= 4).length;
@@ -3510,7 +3954,7 @@ window.restoreBackup = async function(filename) {
 
 window.syncLocalToApi = async function() {
   try {
-    const ping = await fetch('/api/folders');
+    const ping = await fetch('/api/status');
     if (!ping.ok) throw new Error('API server unreachable');
   } catch (e) {
     alert("❌ Không thể kết nối với máy chủ API. Hãy chắc chắn rằng file server.ps1 đang chạy!");
@@ -3556,7 +4000,7 @@ window.syncLocalToApi = async function() {
 
 window.syncApiToLocal = async function() {
   try {
-    const ping = await fetch('/api/folders');
+    const ping = await fetch('/api/status');
     if (!ping.ok) throw new Error('API server unreachable');
   } catch (e) {
     alert("❌ Không thể kết nối với máy chủ API. Hãy chắc chắn rằng file server.ps1 đang chạy!");
@@ -3604,7 +4048,7 @@ window.syncApiToLocal = async function() {
 
 window.mergeSync = async function() {
   try {
-    const ping = await fetch('/api/folders');
+    const ping = await fetch('/api/status');
     if (!ping.ok) throw new Error('API server unreachable');
   } catch (e) {
     alert("❌ Không thể kết nối với máy chủ API. Hãy chắc chắn rằng file server.ps1 đang chạy!");
@@ -4060,40 +4504,47 @@ const DAILY_DATE_KEY = 'daily_review_date';
 const STREAK_KEY = 'study_streak';
 const STREAK_DATE_KEY = 'study_streak_last_date';
 
+function getUserKey(key) {
+  if (currentUser && currentUser.id) {
+    return `${currentUser.id}_${key}`;
+  }
+  return key;
+}
+
 function getDailyGoalTarget() {
-  return parseInt(localStorage.getItem(DAILY_GOAL_KEY) || '20');
+  return parseInt(localStorage.getItem(getUserKey(DAILY_GOAL_KEY)) || '20');
 }
 
 function setDailyGoalTarget(n) {
-  localStorage.setItem(DAILY_GOAL_KEY, n.toString());
+  localStorage.setItem(getUserKey(DAILY_GOAL_KEY), n.toString());
 }
 
 function getDailyCount() {
   const today = new Date().toISOString().split('T')[0];
-  const storedDate = localStorage.getItem(DAILY_DATE_KEY);
+  const storedDate = localStorage.getItem(getUserKey(DAILY_DATE_KEY));
   if (storedDate !== today) {
     // Reset count for new day
-    localStorage.setItem(DAILY_DATE_KEY, today);
-    localStorage.setItem(DAILY_COUNT_KEY, '0');
+    localStorage.setItem(getUserKey(DAILY_DATE_KEY), today);
+    localStorage.setItem(getUserKey(DAILY_COUNT_KEY), '0');
     return 0;
   }
-  return parseInt(localStorage.getItem(DAILY_COUNT_KEY) || '0');
+  return parseInt(localStorage.getItem(getUserKey(DAILY_COUNT_KEY)) || '0');
 }
 
 function incrementDailyCount(n = 1) {
   const today = new Date().toISOString().split('T')[0];
-  localStorage.setItem(DAILY_DATE_KEY, today);
+  localStorage.setItem(getUserKey(DAILY_DATE_KEY), today);
   const current = getDailyCount();
   const newCount = current + n;
-  localStorage.setItem(DAILY_COUNT_KEY, newCount.toString());
+  localStorage.setItem(getUserKey(DAILY_COUNT_KEY), newCount.toString());
 
   // Check and update streak
-  const lastDate = localStorage.getItem(STREAK_DATE_KEY);
+  const lastDate = localStorage.getItem(getUserKey(STREAK_DATE_KEY));
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayStr = yesterday.toISOString().split('T')[0];
 
-  let streak = parseInt(localStorage.getItem(STREAK_KEY) || '0');
+  let streak = parseInt(localStorage.getItem(getUserKey(STREAK_KEY)) || '0');
   if (lastDate !== today) {
     if (lastDate === yesterdayStr || streak === 0) {
       streak++;
@@ -4102,8 +4553,8 @@ function incrementDailyCount(n = 1) {
     } else {
       streak = 1; // reset streak for missing a day
     }
-    localStorage.setItem(STREAK_KEY, streak.toString());
-    localStorage.setItem(STREAK_DATE_KEY, today);
+    localStorage.setItem(getUserKey(STREAK_KEY), streak.toString());
+    localStorage.setItem(getUserKey(STREAK_DATE_KEY), today);
   }
 
   updateDailyGoalUI(newCount, getDailyGoalTarget(), streak);
@@ -4119,7 +4570,7 @@ function updateDailyGoalUI(count, target, streak) {
 
   if (goalEl) goalEl.innerText = count;
   if (targetEl) targetEl.innerText = target;
-  if (streakEl) streakEl.innerText = streak !== undefined ? streak : (parseInt(localStorage.getItem(STREAK_KEY) || '0'));
+  if (streakEl) streakEl.innerText = streak !== undefined ? streak : (parseInt(localStorage.getItem(getUserKey(STREAK_KEY)) || '0'));
 
   if (ringFill) {
     const pct = Math.min(count / target, 1);
@@ -4140,13 +4591,16 @@ function updateDailyGoalUI(count, target, streak) {
 
 function updateSidebarStreak(streak) {
   const el = document.getElementById('sidebar-streak');
-  if (el) el.innerText = streak !== undefined ? streak : (localStorage.getItem(STREAK_KEY) || '0');
+  if (el) el.innerText = streak !== undefined ? streak : (localStorage.getItem(getUserKey(STREAK_KEY)) || '0');
+
+  const headerEl = document.getElementById('header-streak-value');
+  if (headerEl) headerEl.innerText = streak !== undefined ? streak : (localStorage.getItem(getUserKey(STREAK_KEY)) || '0');
 }
 
 function initDailyGoalUI() {
   const count = getDailyCount();
   const target = getDailyGoalTarget();
-  const streak = parseInt(localStorage.getItem(STREAK_KEY) || '0');
+  const streak = parseInt(localStorage.getItem(getUserKey(STREAK_KEY)) || '0');
   updateDailyGoalUI(count, target, streak);
   updateSidebarStreak(streak);
 }
@@ -4889,7 +5343,7 @@ initDailyGoalUI();
 
 // Update home view stats after load
 setTimeout(() => {
-  const savedStreak = parseInt(localStorage.getItem(STREAK_KEY) || '0');
+  const savedStreak = parseInt(localStorage.getItem(getUserKey(STREAK_KEY)) || '0');
   updateSidebarStreak(savedStreak);
 }, 500);
 
@@ -5082,3 +5536,220 @@ function triggerConfetti() {
 
   requestAnimationFrame(animate);
 }
+
+// ==========================================
+// 10. USER PROFILE VIEW LOGIC
+// ==========================================
+async function initProfileView() {
+  if (!currentUser) return;
+  
+  // Fill profile details
+  document.getElementById('profile-display-username').innerText = currentUser.username;
+  document.getElementById('profile-display-role').innerText = currentUser.role;
+  document.getElementById('profile-display-role').className = `user-role-badge ${currentUser.role}`;
+  document.getElementById('profile-input-username').value = currentUser.username;
+  
+  // Avatar
+  const avatarDisplay = document.getElementById('profile-avatar-display');
+  if (currentUser.avatarUrl) {
+    avatarDisplay.innerHTML = `<img src="${currentUser.avatarUrl}" alt="Avatar" class="user-avatar-img">`;
+  } else {
+    avatarDisplay.innerHTML = `<i class="fas fa-user-circle"></i>`;
+  }
+
+  // Hide forms if Offline
+  const formsBox = document.getElementById('profile-online-forms-box');
+  const offlineWarning = document.getElementById('profile-offline-warning');
+  const avatarBtn = document.getElementById('profile-avatar-btn');
+  if (isDemoMode) {
+    formsBox.classList.add('hidden');
+    offlineWarning.classList.remove('hidden');
+    if (avatarBtn) avatarBtn.classList.add('hidden');
+  } else {
+    formsBox.classList.remove('hidden');
+    offlineWarning.classList.add('hidden');
+    if (avatarBtn) avatarBtn.classList.remove('hidden');
+  }
+
+  // Load stats
+  const streakKey = typeof getUserKey === 'function' ? getUserKey('study_streak') : 'study_streak';
+  const streakVal = parseInt(localStorage.getItem(streakKey) || '0');
+  document.getElementById('profile-stat-streak').innerText = streakVal;
+
+  let folders = [];
+  let sets = [];
+  let cards = [];
+  
+  if (isDemoMode) {
+    folders = getLocalStorage(FOLDERS_KEY);
+    sets = getLocalStorage(SETS_KEY);
+    cards = getLocalStorage(CARDS_KEY);
+  } else {
+    try {
+      const foldersRes = await fetch('/api/folders');
+      if (foldersRes.ok) folders = await foldersRes.json();
+      
+      const setsRes = await fetch('/api/sets');
+      if (setsRes.ok) sets = await setsRes.json();
+      
+      const cardsRes = await fetch('/api/cards');
+      if (cardsRes.ok) cards = await cardsRes.json();
+    } catch (e) {
+      console.error("Error loading profile stats:", e);
+    }
+  }
+
+  document.getElementById('profile-stat-folders').innerText = folders.length;
+  document.getElementById('profile-stat-sets').innerText = sets.length;
+  document.getElementById('profile-stat-cards').innerText = cards.length;
+
+  // Load Settings
+  document.getElementById('profile-setting-tts-enabled').checked = ttsSettings.enabled;
+  document.getElementById('profile-setting-tts-autoflip').checked = ttsSettings.autoFlip;
+  document.getElementById('profile-setting-audio-feedback').checked = ttsSettings.audioFeedback !== false;
+  document.getElementById('profile-setting-tts-rate').value = ttsSettings.rate;
+  document.getElementById('profile-setting-tts-rate-label').innerText = ttsSettings.rate + 'x';
+  document.getElementById('profile-setting-tts-voice').value = ttsSettings.voice;
+}
+
+// Track slider rates
+document.getElementById('profile-setting-tts-rate').addEventListener('input', (e) => {
+  document.getElementById('profile-setting-tts-rate-label').innerText = parseFloat(e.target.value).toFixed(1) + 'x';
+});
+
+// Save settings handler
+document.getElementById('profile-save-settings-btn').addEventListener('click', async () => {
+  ttsSettings.enabled = document.getElementById('profile-setting-tts-enabled').checked;
+  ttsSettings.autoFlip = document.getElementById('profile-setting-tts-autoflip').checked;
+  ttsSettings.audioFeedback = document.getElementById('profile-setting-audio-feedback').checked;
+  ttsSettings.rate = parseFloat(document.getElementById('profile-setting-tts-rate').value);
+  ttsSettings.voice = document.getElementById('profile-setting-tts-voice').value;
+  
+  await saveTTSSettings();
+  showToast('Đã lưu cấu hình ứng dụng thành công!', 'success');
+  
+  // Sync to TTS Modal if it exists
+  const modalToggle = document.getElementById('tts-enabled-toggle');
+  if (modalToggle) {
+    modalToggle.checked = ttsSettings.enabled;
+    document.getElementById('tts-auto-flip-toggle').checked = ttsSettings.autoFlip;
+    document.getElementById('audio-feedback-toggle').checked = ttsSettings.audioFeedback;
+    document.getElementById('tts-rate-slider').value = ttsSettings.rate;
+    document.getElementById('tts-rate-label').innerText = ttsSettings.rate + 'x';
+    document.getElementById('tts-voice-select').value = ttsSettings.voice;
+  }
+});
+
+// Profile forms submit: update username
+document.getElementById('profile-username-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const newUsername = document.getElementById('profile-input-username').value.trim();
+  if (!newUsername) return;
+
+  try {
+    const res = await fetch('/api/user/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: newUsername })
+    });
+    
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Cập nhật thất bại.');
+    }
+    
+    const data = await res.json();
+    currentUser.username = data.user.username;
+    localStorage.setItem('tct_srs_current_user', JSON.stringify(currentUser));
+    
+    updateUserWidgetUI();
+    document.getElementById('profile-display-username').innerText = currentUser.username;
+    showToast('Cập nhật tên đăng nhập thành công!', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+});
+
+// Profile forms submit: change password
+document.getElementById('profile-pwd-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const currentPassword = document.getElementById('profile-pwd-curr').value;
+  const newPassword = document.getElementById('profile-pwd-new').value;
+  const confPassword = document.getElementById('profile-pwd-conf').value;
+
+  if (newPassword !== confPassword) {
+    showToast('Xác nhận mật khẩu mới không khớp!', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/user/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+    
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Đổi mật khẩu thất bại.');
+    }
+    
+    document.getElementById('profile-pwd-curr').value = '';
+    document.getElementById('profile-pwd-new').value = '';
+    document.getElementById('profile-pwd-conf').value = '';
+    
+    showToast('Đổi mật khẩu bảo mật thành công!', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+});
+
+// Avatar upload trigger
+document.getElementById('profile-avatar-btn').addEventListener('click', () => {
+  document.getElementById('profile-avatar-file').click();
+});
+
+// Avatar file upload handler
+document.getElementById('profile-avatar-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const base64Data = reader.result;
+    
+    try {
+      showToast('Đang tải ảnh đại diện lên...', 'info');
+      // 1. Upload file
+      const uploadRes = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: file.name, base64Data })
+      });
+      
+      if (!uploadRes.ok) throw new Error('Không thể tải tệp lên server.');
+      const uploadData = await uploadRes.json();
+      const avatarUrl = uploadData.url;
+
+      // 2. Save avatar URL to user profile
+      const profileRes = await fetch('/api/user/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ avatarUrl })
+      });
+      
+      if (!profileRes.ok) throw new Error('Không thể lưu ảnh đại diện vào hồ sơ.');
+      const profileData = await profileRes.json();
+      
+      currentUser.avatarUrl = profileData.user.avatarUrl;
+      localStorage.setItem('tct_srs_current_user', JSON.stringify(currentUser));
+      
+      updateUserWidgetUI();
+      document.getElementById('profile-avatar-display').innerHTML = `<img src="${currentUser.avatarUrl}" alt="Avatar" class="user-avatar-img">`;
+      showToast('Tải ảnh đại diện mới thành công!', 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+  reader.readAsDataURL(file);
+});
