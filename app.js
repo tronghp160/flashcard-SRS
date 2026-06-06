@@ -3313,7 +3313,7 @@ document.getElementById('write-answer-input').addEventListener('keydown', (e) =>
 
 document.getElementById('write-back-btn').addEventListener('click', () => { selectStudyMode('flashcards'); });
 document.getElementById('write-speak-btn').addEventListener('click', () => {
-  if (writeIndex < writeCards.length) speakText(writeCards[writeIndex].front_word, ttsSettings.voice);
+  if (writeIndex < writeCards.length) speakText(writeCards[writeIndex].front_word, 'en-US');
 });
 document.getElementById('write-retry-btn').addEventListener('click', () => initWriteMode());
 document.getElementById('write-retry-mistakes-btn').addEventListener('click', () => {
