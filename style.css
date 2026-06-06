@@ -96,13 +96,14 @@ input, textarea, select {
   left: 0;
   z-index: 99;
   transition: var(--transition), background-color 0.3s ease;
+  overflow-y: auto;
 }
 
 .logo-section {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 32px;
+  margin-bottom: 20px;
   font-family: 'Outfit', sans-serif;
   font-size: 1.35rem;
   font-weight: 800;
@@ -157,7 +158,7 @@ input, textarea, select {
 .sidebar-divider {
   height: 1px;
   background-color: var(--border-color);
-  margin: 16px 0;
+  margin: 12px 0;
 }
 
 .sidebar-header-row {
@@ -234,8 +235,8 @@ input, textarea, select {
 .sidebar-streak-widget {
   margin-top: auto;
   background-color: var(--bg-input);
-  border-radius: 16px;
-  padding: 16px;
+  border-radius: 12px;
+  padding: 12px;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -3202,8 +3203,8 @@ body.dark-mode .premium-teaser-content {
    SIDEBAR BOTTOM TOOLS
    ========================================== */
 .sidebar-bottom-tools {
-  margin-top: auto;
-  padding: 12px 8px 4px;
+  margin-top: 12px;
+  padding: 8px 4px 4px;
   display: flex;
   flex-direction: column;
   gap: 4px;
