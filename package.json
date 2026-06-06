@@ -1,5 +1,5 @@
-{
-  "name": "tctenglish-flashcard-srs",
+﻿{
+  "name": "hptenglish-flashcard-srs",
   "version": "1.0.0",
   "description": "Flashcard Spaced Repetition System with Node.js backend",
   "main": "server.js",

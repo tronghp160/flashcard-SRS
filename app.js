@@ -1,13 +1,13 @@
-// ==========================================
+﻿// ==========================================
 // CONFIGURATION & INITIALIZATION
 // ==========================================
 let isDemoMode = true;
 
 // Session & Authentication State
-let token = localStorage.getItem('tct_srs_token') || null;
+let token = localStorage.getItem('hpt_srs_token') || null;
 let currentUser = null;
 try {
-  const userStr = localStorage.getItem('tct_srs_current_user');
+  const userStr = localStorage.getItem('hpt_srs_current_user');
   if (userStr) currentUser = JSON.parse(userStr);
 } catch (e) {
   console.error("Error parsing current user:", e);
@@ -72,9 +72,9 @@ window.handleAuthSubmit = async function(event, type) {
       token = data.token;
       currentUser = data.user;
       
-      localStorage.setItem('tct_srs_token', token);
-      localStorage.setItem('tct_srs_current_user', JSON.stringify(currentUser));
-      localStorage.removeItem('tct_srs_offline_mode'); // Clear offline flag
+      localStorage.setItem('hpt_srs_token', token);
+      localStorage.setItem('hpt_srs_current_user', JSON.stringify(currentUser));
+      localStorage.removeItem('hpt_srs_offline_mode'); // Clear offline flag
       isDemoMode = false;
       
       showToast('Đăng nhập thành công!', 'success');
@@ -1443,7 +1443,7 @@ function updateFCCard(direction = 'none') {
   }
 
   if (fcActiveIndex >= currentStudyCards.length) {
-    localStorage.removeItem('tct_resume_session');
+    localStorage.removeItem('hpt_resume_session');
     container.style.display = 'none';
     actions.style.display = 'none';
     controls.style.display = 'none';
@@ -2054,7 +2054,7 @@ function updateQuizProgress() {
 
 function loadQuizQuestion() {
   if (quizActiveIndex >= quizCards.length) {
-    localStorage.removeItem('tct_resume_session');
+    localStorage.removeItem('hpt_resume_session');
     finishQuiz();
     return;
   }
@@ -2621,9 +2621,9 @@ document.getElementById('admin-back-btn').addEventListener('click', () => {
 window.handleLogout = function() {
   token = null;
   currentUser = null;
-  localStorage.removeItem('tct_srs_token');
-  localStorage.removeItem('tct_srs_current_user');
-  localStorage.removeItem('tct_srs_offline_mode');
+  localStorage.removeItem('hpt_srs_token');
+  localStorage.removeItem('hpt_srs_current_user');
+  localStorage.removeItem('hpt_srs_offline_mode');
   
   document.body.classList.add('not-logged-in');
   updateUserWidgetUI();
@@ -2646,9 +2646,9 @@ document.getElementById('auth-offline-btn').addEventListener('click', () => {
   token = null;
   currentUser = { id: 'guest', username: 'Khách (Offline)', role: 'user' };
   
-  localStorage.setItem('tct_srs_offline_mode', 'true');
-  localStorage.removeItem('tct_srs_token');
-  localStorage.removeItem('tct_srs_current_user');
+  localStorage.setItem('hpt_srs_offline_mode', 'true');
+  localStorage.removeItem('hpt_srs_token');
+  localStorage.removeItem('hpt_srs_current_user');
   
   document.body.classList.remove('not-logged-in');
   updateUserWidgetUI();
@@ -2865,7 +2865,7 @@ function escapeHtml(str) {
 async function startApp() {
   await initializeAppWithTimeout();
   
-  const offlineModeFlag = localStorage.getItem('tct_srs_offline_mode') === 'true';
+  const offlineModeFlag = localStorage.getItem('hpt_srs_offline_mode') === 'true';
   
   if (isDemoMode || offlineModeFlag) {
     if (!currentUser || currentUser.id !== 'guest') {
@@ -3110,7 +3110,7 @@ function initWriteMode(cards) {
 
 function loadWriteQuestion() {
   if (writeIndex >= writeCards.length) {
-    localStorage.removeItem('tct_resume_session');
+    localStorage.removeItem('hpt_resume_session');
     finishWriteMode();
     return;
   }
@@ -4351,7 +4351,7 @@ window.startPrintProcess = function() {
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #e2e8f0; padding-bottom:16px;" class="no-print">
         <div>
           <h1 style="margin:0;">Học phần: ${escapeHtml(setTitle)}</h1>
-          <div style="font-size:0.9rem; color:#64748b; margin-top:4px;">Số lượng: ${currentSetCards.length} từ vựng • Tạo bởi TCTEnglish</div>
+          <div style="font-size:0.9rem; color:#64748b; margin-top:4px;">Số lượng: ${currentSetCards.length} từ vựng • Tạo bởi HPTEnglish</div>
         </div>
         <button onclick="window.print()" style="background:#23b26d; color:white; border:none; padding:10px 20px; border-radius:8px; font-weight:700; font-size:1rem; cursor:pointer; display:flex; align-items:center; gap:8px;">
           <i class="fas fa-print"></i> Click vào đây để IN / Xuất PDF
@@ -5247,11 +5247,11 @@ function saveResumeSession() {
     index: index,
     time: Date.now()
   };
-  localStorage.setItem('tct_resume_session', JSON.stringify(session));
+  localStorage.setItem('hpt_resume_session', JSON.stringify(session));
 }
 
 async function checkAndShowResumeBanner() {
-  const sessionData = localStorage.getItem('tct_resume_session');
+  const sessionData = localStorage.getItem('hpt_resume_session');
   const banner = document.getElementById('resume-session-banner');
   if (!sessionData || !banner) {
     if (banner) banner.classList.add('hidden');
@@ -5262,7 +5262,7 @@ async function checkAndShowResumeBanner() {
     const session = JSON.parse(sessionData);
     // Expiration: check if older than 24 hours (86400000 ms)
     if (Date.now() - session.time > 86400000) {
-      localStorage.removeItem('tct_resume_session');
+      localStorage.removeItem('hpt_resume_session');
       banner.classList.add('hidden');
       return;
     }
@@ -5270,7 +5270,7 @@ async function checkAndShowResumeBanner() {
     // Load set info to show the title
     const setObj = await getStudySetById(session.setId);
     if (!setObj) {
-      localStorage.removeItem('tct_resume_session');
+      localStorage.removeItem('hpt_resume_session');
       banner.classList.add('hidden');
       return;
     }
@@ -5293,7 +5293,7 @@ async function checkAndShowResumeBanner() {
 }
 
 window.resumeStudySession = async function() {
-  const sessionData = localStorage.getItem('tct_resume_session');
+  const sessionData = localStorage.getItem('hpt_resume_session');
   if (!sessionData) return;
 
   try {
@@ -5330,7 +5330,7 @@ window.resumeStudySession = async function() {
 };
 
 window.discardResumeSession = function() {
-  localStorage.removeItem('tct_resume_session');
+  localStorage.removeItem('hpt_resume_session');
   document.getElementById('resume-session-banner')?.classList.add('hidden');
 };
 
@@ -5660,7 +5660,7 @@ document.getElementById('profile-username-form').addEventListener('submit', asyn
     
     const data = await res.json();
     currentUser.username = data.user.username;
-    localStorage.setItem('tct_srs_current_user', JSON.stringify(currentUser));
+    localStorage.setItem('hpt_srs_current_user', JSON.stringify(currentUser));
     
     updateUserWidgetUI();
     document.getElementById('profile-display-username').innerText = currentUser.username;
@@ -5742,7 +5742,7 @@ document.getElementById('profile-avatar-file').addEventListener('change', async 
       const profileData = await profileRes.json();
       
       currentUser.avatarUrl = profileData.user.avatarUrl;
-      localStorage.setItem('tct_srs_current_user', JSON.stringify(currentUser));
+      localStorage.setItem('hpt_srs_current_user', JSON.stringify(currentUser));
       
       updateUserWidgetUI();
       document.getElementById('profile-avatar-display').innerHTML = `<img src="${currentUser.avatarUrl}" alt="Avatar" class="user-avatar-img">`;

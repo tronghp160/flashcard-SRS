@@ -1,6 +1,6 @@
-{
-  "name": "TCTEnglish Flashcard SRS",
-  "short_name": "TCTEnglish",
+﻿{
+  "name": "HPTEnglish Flashcard SRS",
+  "short_name": "HPTEnglish",
   "description": "Hệ thống học từ vựng Spaced Repetition thông minh",
   "start_url": "/",
   "display": "standalone",
