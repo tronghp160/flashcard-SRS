@@ -4892,3 +4892,193 @@ setTimeout(() => {
   const savedStreak = parseInt(localStorage.getItem(STREAK_KEY) || '0');
   updateSidebarStreak(savedStreak);
 }, 500);
+
+// ==========================================
+// AUDIO FEEDBACK & CONFETTI CELEBRATIONS
+// ==========================================
+let audioCtx = null;
+
+function playAudioFeedback(type) {
+  if (ttsSettings && ttsSettings.audioFeedback === false) return;
+  
+  try {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    
+    const now = audioCtx.currentTime;
+    
+    if (type === 'flip') {
+      // Short high-quality card lật wave
+      const osc = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(180, now);
+      osc.frequency.exponentialRampToValueAtTime(320, now + 0.08);
+      
+      gainNode.gain.setValueAtTime(0.08, now);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      
+      osc.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      osc.start(now);
+      osc.stop(now + 0.08);
+    } 
+    else if (type === 'success') {
+      // Ting ting sound (C5 and E5 chime)
+      const duration = 0.12;
+      
+      const osc1 = audioCtx.createOscillator();
+      const gain1 = audioCtx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(523.25, now);
+      gain1.gain.setValueAtTime(0.12, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + duration);
+      osc1.connect(gain1);
+      gain1.connect(audioCtx.destination);
+      osc1.start(now);
+      osc1.stop(now + duration);
+      
+      const osc2 = audioCtx.createOscillator();
+      const gain2 = audioCtx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(659.25, now + 0.08);
+      gain2.gain.setValueAtTime(0.12, now + 0.08);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.08 + duration);
+      osc2.connect(gain2);
+      gain2.connect(audioCtx.destination);
+      osc2.start(now + 0.08);
+      osc2.stop(now + 0.08 + duration);
+    } 
+    else if (type === 'fail') {
+      // Buzzer sound
+      const osc = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(120, now);
+      osc.frequency.linearRampToValueAtTime(80, now + 0.22);
+      
+      gainNode.gain.setValueAtTime(0.06, now);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      
+      osc.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      osc.start(now);
+      osc.stop(now + 0.22);
+    } 
+    else if (type === 'complete') {
+      // Fanfare: C5 - E5 - G5 - C6
+      const notes = [523.25, 659.25, 783.99, 1046.50];
+      notes.forEach((freq, index) => {
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        const start = now + index * 0.08;
+        const dur = 0.25;
+        
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, start);
+        
+        gainNode.gain.setValueAtTime(0.1, start);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, start + dur);
+        
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        osc.start(start);
+        osc.stop(start + dur);
+      });
+    }
+  } catch (err) {
+    console.warn("Audio feedback error:", err);
+  }
+}
+
+function triggerConfetti() {
+  const canvas = document.createElement('canvas');
+  canvas.style.position = 'fixed';
+  canvas.style.top = '0';
+  canvas.style.left = '0';
+  canvas.style.width = '100vw';
+  canvas.style.height = '100vh';
+  canvas.style.zIndex = '99999';
+  canvas.style.pointerEvents = 'none';
+  document.body.appendChild(canvas);
+
+  const ctx = canvas.getContext('2d');
+  let width = canvas.width = window.innerWidth;
+  let height = canvas.height = window.innerHeight;
+
+  window.addEventListener('resize', () => {
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+  });
+
+  const colors = ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4', '#009688', '#4caf50', '#8bc34a', '#cddc39', '#ffeb3b', '#ffc107', '#ff9800', '#ff5722'];
+  const particles = [];
+  const particleCount = 120;
+
+  for (let i = 0; i < particleCount; i++) {
+    const isLeft = i < particleCount / 2;
+    particles.push({
+      x: isLeft ? 0 : width,
+      y: height * 0.9,
+      size: Math.random() * 8 + 6,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      angle: isLeft ? (Math.random() * 45 - 25) * Math.PI / 180 : (Math.random() * 45 + 160) * Math.PI / 180,
+      speed: Math.random() * 15 + 15,
+      gravity: 0.45,
+      rotation: Math.random() * 360,
+      rotationSpeed: Math.random() * 10 - 5,
+      opacity: 1,
+      drag: 0.93
+    });
+  }
+
+  const startTime = Date.now();
+  const duration = 2500;
+
+  function animate() {
+    ctx.clearRect(0, 0, width, height);
+
+    const elapsed = Date.now() - startTime;
+    if (elapsed > duration) {
+      if (canvas.parentNode) {
+        document.body.removeChild(canvas);
+      }
+      return;
+    }
+
+    particles.forEach(p => {
+      p.x += Math.cos(p.angle) * p.speed;
+      p.y += Math.sin(p.angle) * p.speed + p.gravity;
+      p.speed *= p.drag;
+      p.gravity += 0.05;
+      p.rotation += p.rotationSpeed;
+      
+      if (elapsed > duration * 0.6) {
+        p.opacity = 1 - (elapsed - duration * 0.6) / (duration * 0.4);
+      }
+
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rotation * Math.PI / 180);
+      ctx.globalAlpha = Math.max(0, p.opacity);
+      ctx.fillStyle = p.color;
+      
+      ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+      ctx.restore();
+    });
+
+    requestAnimationFrame(animate);
+  }
+
+  requestAnimationFrame(animate);
+}
