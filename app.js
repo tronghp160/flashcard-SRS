@@ -1,4 +1,4 @@
-﻿// ==========================================
+// ==========================================
 // CONFIGURATION & INITIALIZATION
 // ==========================================
 let isDemoMode = true;
@@ -13,7 +13,7 @@ try {
   console.error("Error parsing current user:", e);
 }
 
-// Intercept fetch requests to append Authorization header (only for local API calls to prevent CORS preflight issues with external APIs)
+// Intercept fetch requests to append Authorization header and handle 401 Unauthorized globally
 const originalFetch = window.fetch;
 window.fetch = async function(url, options) {
   options = options || {};
@@ -23,7 +23,21 @@ window.fetch = async function(url, options) {
   if (isLocalApi && token && !options.headers['Authorization']) {
     options.headers['Authorization'] = `Bearer ${token}`;
   }
-  return originalFetch(url, options);
+  const response = await originalFetch(url, options);
+  if (isLocalApi && response.status === 401 && !urlStr.includes('/api/auth/')) {
+    // Clear expired or invalid credentials
+    token = null;
+    currentUser = null;
+    localStorage.removeItem('hpt_srs_token');
+    localStorage.removeItem('hpt_srs_current_user');
+    localStorage.removeItem('hpt_srs_offline_mode');
+    
+    document.body.classList.add('not-logged-in');
+    updateUserWidgetUI();
+    showView('auth');
+    showToast('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', 'error');
+  }
+  return response;
 };
 
 // Switch auth tabs (Login / Register)
@@ -220,6 +234,10 @@ function getReviewDate(next_review) {
 // Database error helper
 function handleDbError(error, contextName = "") {
   console.error(`Local API Error during ${contextName}:`, error);
+  if (error && error.message && error.message.includes('401')) {
+    // Already handled by fetch interceptor (redirected to login)
+    return;
+  }
   alert(`Lỗi thao tác Database (${contextName}):\n${error.message}\n\nNguyên nhân phổ biến:\n1. Server server.ps1 đã bị tắt.\n2. Lỗi cấu trúc dữ liệu JSON.\n3. Quyền ghi file bị hạn chế.`);
 }
 
