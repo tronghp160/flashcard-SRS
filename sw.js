@@ -1,5 +1,5 @@
 // Service Worker for TCTEnglish Flashcard SRS PWA
-const CACHE_NAME = 'tct-srs-v11';
+const CACHE_NAME = 'tct-srs-v12';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

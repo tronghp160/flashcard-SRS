@@ -3213,7 +3213,6 @@ let forecastChart30Instance = null;
 let ratingDistChartInstance = null;
 
 async function initAnalyticsView() {
-  showView('analytics');
   await renderSidebar();
 
   const log = await getStudyLog();
