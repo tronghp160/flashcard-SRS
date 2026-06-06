@@ -1700,6 +1700,9 @@ document.addEventListener('keydown', (e) => {
 // Swipe Gesture logic
 let startX = 0, currentX = 0, isDragging = false;
 fcInner.addEventListener('pointerdown', (e) => {
+  if (e.target.closest('.card-speak-btn') || e.target.closest('.card-star-btn')) {
+    return;
+  }
   startX = e.clientX;
   isDragging = true;
   fcInner.setPointerCapture(e.pointerId);

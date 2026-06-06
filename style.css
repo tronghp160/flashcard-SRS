@@ -1345,6 +1345,8 @@ body.dark-mode .header-streak-widget:hover {
   margin-bottom: 20px;
   border-radius: 12px;
   border: 1px solid var(--border-color);
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .card-back-spec-pill {
