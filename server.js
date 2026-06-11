@@ -1,14 +1,23 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const mongoose = require('mongoose');
+const { User, Folder, Set, Card, StudyLog } = require('./models');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 const dbPath = path.join(__dirname, 'database.json');
 
-// Auto-backup on startup
+// MongoDB Connection
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/flashcard_srs';
+mongoose.connect(MONGODB_URI)
+  .then(() => console.log('Successfully connected to MongoDB.'))
+  .catch(err => console.error('MongoDB connection error:', err));
+
+// Auto-backup database.json if it exists on startup (legacy safeguard)
 try {
   const backupsDirInit = path.join(__dirname, 'backups');
   if (!fs.existsSync(backupsDirInit)) {
@@ -41,33 +50,31 @@ try {
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// Database Helpers
-function readDb() {
-  try {
-    if (!fs.existsSync(dbPath)) {
-      return { users: [], folders: [], sets: [], cards: [], study_log: [] };
-    }
-    const data = fs.readFileSync(dbPath, 'utf8');
-    const db = JSON.parse(data);
-    ['users', 'folders', 'sets', 'cards', 'study_log'].forEach(prop => {
-      if (!db[prop]) db[prop] = [];
-    });
-    return db;
-  } catch (e) {
-    console.error('Error reading database:', e);
-    return { users: [], folders: [], sets: [], cards: [], study_log: [] };
-  }
+// MongoDB Backup and Restore Helpers
+async function exportMongoToObj() {
+  const users = await User.find({}).lean();
+  const folders = await Folder.find({}).lean();
+  const sets = await Set.find({}).lean();
+  const cards = await Card.find({}).lean();
+  const study_log = await StudyLog.find({}).lean();
+  return { users, folders, sets, cards, study_log };
 }
 
-function writeDb(db) {
-  try {
-    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf8');
-  } catch (e) {
-    console.error('Error writing database:', e);
-  }
+async function importObjToMongo(dbObj) {
+  await User.deleteMany({});
+  await Folder.deleteMany({});
+  await Set.deleteMany({});
+  await Card.deleteMany({});
+  await StudyLog.deleteMany({});
+
+  if (Array.isArray(dbObj.users) && dbObj.users.length > 0) await User.insertMany(dbObj.users);
+  if (Array.isArray(dbObj.folders) && dbObj.folders.length > 0) await Folder.insertMany(dbObj.folders);
+  if (Array.isArray(dbObj.sets) && dbObj.sets.length > 0) await Set.insertMany(dbObj.sets);
+  if (Array.isArray(dbObj.cards) && dbObj.cards.length > 0) await Card.insertMany(dbObj.cards);
+  if (Array.isArray(dbObj.study_log) && dbObj.study_log.length > 0) await StudyLog.insertMany(dbObj.study_log);
 }
 
-function makeBackup(prefix = 'backup') {
+async function makeBackup(prefix = 'backup') {
   const backupsDir = path.join(__dirname, 'backups');
   if (!fs.existsSync(backupsDir)) {
     fs.mkdirSync(backupsDir, { recursive: true });
@@ -78,8 +85,11 @@ function makeBackup(prefix = 'backup') {
   const backupName = `${prefix}_${ts}.json`;
   const backupPath = path.join(backupsDir, backupName);
   
-  if (fs.existsSync(dbPath)) {
-    fs.copyFileSync(dbPath, backupPath);
+  try {
+    const dbData = await exportMongoToObj();
+    fs.writeFileSync(backupPath, JSON.stringify(dbData, null, 2), 'utf8');
+  } catch (e) {
+    console.error('Error creating backup:', e);
   }
   
   try {
@@ -150,7 +160,7 @@ function verifyToken(token) {
 }
 
 // Authentication Middleware
-function authMiddleware(req, res, next) {
+async function authMiddleware(req, res, next) {
   // Bypass authentication for non-API requests (like static HTML, CSS, JS files)
   if (!req.path.startsWith('/api/')) {
     return next();
@@ -161,15 +171,18 @@ function authMiddleware(req, res, next) {
     const token = authHeader.substring(7);
     const decoded = verifyToken(token);
     if (decoded) {
-      const db = readDb();
-      const user = db.users.find(u => u.id === decoded.userId);
-      if (user) {
-        req.currentUser = {
-          id: user.id,
-          role: user.role,
-          username: user.username
-        };
-        return next();
+      try {
+        const user = await User.findOne({ id: decoded.userId });
+        if (user) {
+          req.currentUser = {
+            id: user.id,
+            role: user.role,
+            username: user.username
+          };
+          return next();
+        }
+      } catch (e) {
+        console.error("Error in authMiddleware user lookup:", e);
       }
     }
   }
@@ -200,102 +213,127 @@ app.get('/api/status', (req, res) => {
 });
 
 // 0.1 Register
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: "Username and password are required" });
   }
   const cleanUsername = username.trim().toLowerCase();
-  const db = readDb();
-  if (db.users.some(u => u.username.toLowerCase() === cleanUsername)) {
-    return res.status(400).json({ error: "Username already exists" });
+  try {
+    const userExists = await User.findOne({ username: cleanUsername });
+    if (userExists) {
+      return res.status(400).json({ error: "Username already exists" });
+    }
+    const count = await User.countDocuments({});
+    const role = count === 0 ? "admin" : "user";
+    const newUserId = "user_" + crypto.randomBytes(4).toString('hex');
+    const newUser = new User({
+      id: newUserId,
+      username: cleanUsername,
+      passwordHash: getPasswordHash(password),
+      role,
+      settings: { tts_enabled: true, tts_rate: 0.9, tts_voice: "en-US", auto_speak_on_flip: false, audio_feedback: true }
+    });
+    await newUser.save();
+    res.status(201).json({ id: newUserId, username: cleanUsername, role });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  const role = db.users.length === 0 ? "admin" : "user";
-  const newUserId = "user_" + crypto.randomBytes(4).toString('hex');
-  const newUser = {
-    id: newUserId,
-    username: cleanUsername,
-    passwordHash: getPasswordHash(password),
-    role,
-    settings: { tts_enabled: true, tts_rate: 0.9, tts_voice: "en-US", auto_speak_on_flip: false, audio_feedback: true }
-  };
-  db.users.push(newUser);
-  writeDb(db);
-  res.status(201).json({ id: newUserId, username: cleanUsername, role });
 });
 
 // 0.2 Login
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: "Username and password are required" });
   }
   const cleanUsername = username.trim().toLowerCase();
-  const db = readDb();
-  const foundUser = db.users.find(u => u.username.toLowerCase() === cleanUsername);
-  if (!foundUser || getPasswordHash(password) !== foundUser.passwordHash) {
-    return res.status(401).json({ error: "Incorrect username or password" });
-  }
-  const token = generateToken(foundUser.id, foundUser.role);
-  res.status(200).json({
-    token,
-    user: {
-      id: foundUser.id,
-      username: foundUser.username,
-      role: foundUser.role,
-      avatarUrl: foundUser.avatarUrl
+  try {
+    const foundUser = await User.findOne({ username: cleanUsername });
+    if (!foundUser || getPasswordHash(password) !== foundUser.passwordHash) {
+      return res.status(401).json({ error: "Incorrect username or password" });
     }
-  });
+    const token = generateToken(foundUser.id, foundUser.role);
+    res.status(200).json({
+      token,
+      user: {
+        id: foundUser.id,
+        username: foundUser.username,
+        role: foundUser.role,
+        avatarUrl: foundUser.avatarUrl
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // 0.3 Admin endpoints
-app.get('/api/admin/users', adminMiddleware, (req, res) => {
-  const db = readDb();
-  res.json(db.users.map(u => ({ id: u.id, username: u.username, role: u.role })));
+app.get('/api/admin/users', adminMiddleware, async (req, res) => {
+  try {
+    const users = await User.find({}, 'id username role');
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.put('/api/admin/users/:userId/role', adminMiddleware, (req, res) => {
+app.put('/api/admin/users/:userId/role', adminMiddleware, async (req, res) => {
   const { role } = req.body;
   if (role !== 'admin' && role !== 'user') {
     return res.status(400).json({ error: "Invalid role" });
   }
-  const db = readDb();
-  const user = db.users.find(u => u.id === req.params.userId);
-  if (!user) {
-    return res.status(404).json({ error: "User not found" });
+  try {
+    const user = await User.findOneAndUpdate({ id: req.params.userId }, { role }, { new: true });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    res.json({ id: req.params.userId, role });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  user.role = role;
-  writeDb(db);
-  res.json({ id: req.params.userId, role });
 });
 
-app.delete('/api/admin/users/:userId', adminMiddleware, (req, res) => {
+app.delete('/api/admin/users/:userId', adminMiddleware, async (req, res) => {
   if (req.params.userId === req.currentUser.id) {
     return res.status(400).json({ error: "Cannot delete your own account" });
   }
-  const db = readDb();
-  db.users = db.users.filter(u => u.id !== req.params.userId);
-  db.folders = db.folders.filter(f => f.user_id !== req.params.userId);
-  db.sets = db.sets.filter(s => s.user_id !== req.params.userId);
-  db.cards = db.cards.filter(c => c.user_id !== req.params.userId);
-  db.study_log = db.study_log.filter(l => l.user_id !== req.params.userId);
-  writeDb(db);
-  res.json({ success: true });
+  try {
+    await User.deleteOne({ id: req.params.userId });
+    await Folder.deleteMany({ user_id: req.params.userId });
+    await Set.deleteMany({ user_id: req.params.userId });
+    await Card.deleteMany({ user_id: req.params.userId });
+    await StudyLog.deleteMany({ user_id: req.params.userId });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.get('/api/admin/stats', adminMiddleware, (req, res) => {
-  const db = readDb();
-  let dbSize = 0;
-  if (fs.existsSync(dbPath)) {
-    dbSize = fs.statSync(dbPath).size;
+app.get('/api/admin/stats', adminMiddleware, async (req, res) => {
+  try {
+    const totalUsers = await User.countDocuments({});
+    const totalSets = await Set.countDocuments({});
+    const totalCards = await Card.countDocuments({});
+    let dbSize = 0;
+    try {
+      const stats = await mongoose.connection.db.stats();
+      dbSize = stats.dataSize || stats.storageSize || 0;
+    } catch (e) {
+      if (fs.existsSync(dbPath)) {
+        dbSize = fs.statSync(dbPath).size;
+      }
+    }
+    res.json({
+      totalUsers,
+      totalSets,
+      totalCards,
+      dbSize,
+      uptimeSeconds: Math.round(process.uptime())
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  res.json({
-    totalUsers: db.users.length,
-    totalSets: db.sets.length,
-    totalCards: db.cards.length,
-    dbSize,
-    uptimeSeconds: Math.round(process.uptime())
-  });
 });
 
 // 0.4 Upload (authorized)
@@ -326,65 +364,80 @@ app.post('/api/upload', (req, res) => {
 });
 
 // 1. Folders
-app.get('/api/folders', (req, res) => {
-  const db = readDb();
-  res.json(db.folders.filter(f => f.user_id === req.currentUser.id));
+app.get('/api/folders', async (req, res) => {
+  try {
+    const folders = await Folder.find({ user_id: req.currentUser.id });
+    res.json(folders);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.post('/api/folders', (req, res) => {
+app.post('/api/folders', async (req, res) => {
   const folder = req.body;
-  const db = readDb();
   folder.id = "folder_" + crypto.randomBytes(4).toString('hex');
   folder.user_id = req.currentUser.id;
-  db.folders.push(folder);
-  writeDb(db);
-  res.status(201).json(folder);
+  try {
+    const newFolder = new Folder(folder);
+    await newFolder.save();
+    res.status(201).json(newFolder);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.put('/api/folders/:folderId', (req, res) => {
-  const db = readDb();
-  const folder = db.folders.find(f => f.id === req.params.folderId);
-  if (!folder) return res.status(404).json({ error: "Folder not found" });
-  if (folder.user_id !== req.currentUser.id && req.currentUser.role !== 'admin') {
-    return res.status(403).json({ error: "Access denied" });
+app.put('/api/folders/:folderId', async (req, res) => {
+  try {
+    const folder = await Folder.findOne({ id: req.params.folderId });
+    if (!folder) return res.status(404).json({ error: "Folder not found" });
+    if (folder.user_id !== req.currentUser.id && req.currentUser.role !== 'admin') {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    folder.name = req.body.name;
+    await folder.save();
+    res.json(folder);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  folder.name = req.body.name;
-  writeDb(db);
-  res.json(folder);
 });
 
-app.delete('/api/folders/:folderId', (req, res) => {
-  const db = readDb();
-  const folder = db.folders.find(f => f.id === req.params.folderId);
-  if (!folder) return res.status(404).json({ error: "Folder not found" });
-  if (folder.user_id !== req.currentUser.id && req.currentUser.role !== 'admin') {
-    return res.status(403).json({ error: "Access denied" });
+app.delete('/api/folders/:folderId', async (req, res) => {
+  try {
+    const folder = await Folder.findOne({ id: req.params.folderId });
+    if (!folder) return res.status(404).json({ error: "Folder not found" });
+    if (folder.user_id !== req.currentUser.id && req.currentUser.role !== 'admin') {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    await Folder.deleteOne({ id: req.params.folderId });
+    const setsToDelete = await Set.find({ folder_id: req.params.folderId, user_id: req.currentUser.id });
+    const setIds = setsToDelete.map(s => s.id);
+    await Set.deleteMany({ folder_id: req.params.folderId, user_id: req.currentUser.id });
+    if (setIds.length > 0) {
+      await Card.deleteMany({ set_id: { $in: setIds } });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  db.folders = db.folders.filter(f => f.id !== req.params.folderId);
-  const setsToDelete = db.sets.filter(s => s.folder_id === req.params.folderId && s.user_id === req.currentUser.id);
-  db.sets = db.sets.filter(s => !(s.folder_id === req.params.folderId && s.user_id === req.currentUser.id));
-  const setIds = setsToDelete.map(s => s.id);
-  if (setIds.length > 0) {
-    db.cards = db.cards.filter(c => !setIds.includes(c.set_id));
-  }
-  writeDb(db);
-  res.json({ success: true });
 });
 
 // 2. Sets
-app.get('/api/sets', (req, res) => {
+app.get('/api/sets', async (req, res) => {
   const { folderId } = req.query;
-  const db = readDb();
-  let userSets = db.sets.filter(s => s.user_id === req.currentUser.id);
-  if (folderId) {
-    userSets = userSets.filter(s => s.folder_id === folderId);
+  try {
+    const query = { user_id: req.currentUser.id };
+    if (folderId) {
+      query.folder_id = folderId;
+    }
+    const sets = await Set.find(query);
+    res.json(sets);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  res.json(userSets);
 });
 
-app.post('/api/sets', (req, res) => {
+app.post('/api/sets', async (req, res) => {
   const newSet = req.body;
-  const db = readDb();
   if (!newSet.id) {
     newSet.id = "set_" + crypto.randomBytes(4).toString('hex');
   }
@@ -392,235 +445,276 @@ app.post('/api/sets', (req, res) => {
     newSet.user_id = req.currentUser.id;
   }
   
-  const existingSetIdx = db.sets.findIndex(s => s.id === newSet.id);
-  if (existingSetIdx !== -1) {
-    if (db.sets[existingSetIdx].user_id !== req.currentUser.id && req.currentUser.role !== 'admin') {
+  try {
+    const existingSet = await Set.findOne({ id: newSet.id });
+    if (existingSet) {
+      if (existingSet.user_id !== req.currentUser.id && req.currentUser.role !== 'admin') {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      existingSet.title = newSet.title;
+      existingSet.description = newSet.description;
+      if (newSet.folder_id !== undefined) {
+        existingSet.folder_id = newSet.folder_id;
+      }
+      await existingSet.save();
+      res.json(existingSet);
+    } else {
+      const setDoc = new Set(newSet);
+      await setDoc.save();
+      res.json(setDoc);
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/sets/:setId', async (req, res) => {
+  try {
+    const set = await Set.findOne({ id: req.params.setId });
+    if (!set) return res.status(404).json({ error: "Set not found" });
+    if (set.user_id !== req.currentUser.id && req.currentUser.role !== 'admin') {
       return res.status(403).json({ error: "Access denied" });
     }
-    db.sets[existingSetIdx].title = newSet.title;
-    db.sets[existingSetIdx].description = newSet.description;
-    writeDb(db);
-    res.json(db.sets[existingSetIdx]);
-  } else {
-    db.sets.push(newSet);
-    writeDb(db);
-    res.json(newSet);
+    res.json(set);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/api/sets/:setId', (req, res) => {
-  const db = readDb();
-  const set = db.sets.find(s => s.id === req.params.setId);
-  if (!set) return res.status(404).json({ error: "Set not found" });
-  if (set.user_id !== req.currentUser.id && req.currentUser.role !== 'admin') {
-    return res.status(403).json({ error: "Access denied" });
+app.delete('/api/sets/:setId', async (req, res) => {
+  try {
+    const set = await Set.findOne({ id: req.params.setId });
+    if (!set) return res.status(404).json({ error: "Set not found" });
+    if (set.user_id !== req.currentUser.id && req.currentUser.role !== 'admin') {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    await Set.deleteOne({ id: req.params.setId });
+    await Card.deleteMany({ set_id: req.params.setId });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  res.json(set);
 });
 
-app.delete('/api/sets/:setId', (req, res) => {
-  const db = readDb();
-  const set = db.sets.find(s => s.id === req.params.setId);
-  if (!set) return res.status(404).json({ error: "Set not found" });
-  if (set.user_id !== req.currentUser.id && req.currentUser.role !== 'admin') {
-    return res.status(403).json({ error: "Access denied" });
-  }
-  db.sets = db.sets.filter(s => s.id !== req.params.setId);
-  db.cards = db.cards.filter(c => c.set_id !== req.params.setId);
-  writeDb(db);
-  res.json({ success: true });
-});
-
-app.post('/api/sets/:setId/highscore', (req, res) => {
+app.post('/api/sets/:setId/highscore', async (req, res) => {
   const { score } = req.body;
-  const db = readDb();
-  const set = db.sets.find(s => s.id === req.params.setId);
-  if (!set) return res.status(404).json({ error: "Set not found" });
-  if (set.user_id !== req.currentUser.id && req.currentUser.role !== 'admin') {
-    return res.status(403).json({ error: "Access denied" });
+  try {
+    const set = await Set.findOne({ id: req.params.setId });
+    if (!set) return res.status(404).json({ error: "Set not found" });
+    if (set.user_id !== req.currentUser.id && req.currentUser.role !== 'admin') {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    if (set.highscore === undefined || set.highscore === null || score < set.highscore) {
+      set.highscore = score;
+      await set.save();
+    }
+    res.json(set);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  if (set.highscore === undefined || set.highscore === null || score < set.highscore) {
-    set.highscore = score;
-    writeDb(db);
-  }
-  res.json(set);
 });
 
 // 3. Cards
-app.get('/api/cards', (req, res) => {
+app.get('/api/cards', async (req, res) => {
   const { setId } = req.query;
-  const db = readDb();
-  const userSets = db.sets.filter(s => s.user_id === req.currentUser.id);
-  const userSetIds = userSets.map(s => s.id);
-  let userCards = db.cards.filter(c => userSetIds.includes(c.set_id));
-  if (setId) {
-    userCards = userCards.filter(c => c.set_id === setId);
-  }
-  res.json(userCards);
-});
-
-app.post('/api/sets/:setId/cards', (req, res) => {
-  const db = readDb();
-  const set = db.sets.find(s => s.id === req.params.setId);
-  if (!set) return res.status(404).json({ error: "Set not found" });
-  if (set.user_id !== req.currentUser.id && req.currentUser.role !== 'admin') {
-    return res.status(403).json({ error: "Access denied" });
-  }
-  
-  const cardsList = req.body.cards || [];
-  db.cards = db.cards.filter(c => c.set_id !== req.params.setId);
-  cardsList.forEach(c => {
-    if (!c.id) {
-      c.id = "card_" + crypto.randomBytes(4).toString('hex') + crypto.randomBytes(2).toString('hex');
+  try {
+    const userSets = await Set.find({ user_id: req.currentUser.id });
+    const userSetIds = userSets.map(s => s.id);
+    const query = { set_id: { $in: userSetIds } };
+    if (setId) {
+      query.set_id = setId;
     }
-    if (!c.user_id) c.user_id = req.currentUser.id;
-    if (!c.set_id) c.set_id = req.params.setId;
-    db.cards.push(c);
-  });
-  writeDb(db);
-  res.json({ success: true, count: cardsList.length });
+    const cards = await Card.find(query);
+    res.json(cards);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.patch('/api/cards/:cardId', (req, res) => {
-  const db = readDb();
-  const card = db.cards.find(c => c.id === req.params.cardId);
-  if (!card) return res.status(404).json({ error: "Card not found" });
-  
-  const set = db.sets.find(s => s.id === card.set_id);
-  if (set && set.user_id !== req.currentUser.id && req.currentUser.role !== 'admin') {
-    return res.status(403).json({ error: "Access denied" });
+app.post('/api/sets/:setId/cards', async (req, res) => {
+  try {
+    const set = await Set.findOne({ id: req.params.setId });
+    if (!set) return res.status(404).json({ error: "Set not found" });
+    if (set.user_id !== req.currentUser.id && req.currentUser.role !== 'admin') {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    
+    const cardsList = req.body.cards || [];
+    await Card.deleteMany({ set_id: req.params.setId });
+    const processedCards = cardsList.map(c => {
+      if (!c.id) {
+        c.id = "card_" + crypto.randomBytes(4).toString('hex') + crypto.randomBytes(2).toString('hex');
+      }
+      c.user_id = req.currentUser.id;
+      c.set_id = req.params.setId;
+      return c;
+    });
+    if (processedCards.length > 0) {
+      await Card.insertMany(processedCards);
+    }
+    res.json({ success: true, count: processedCards.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  
-  const fields = req.body;
-  Object.keys(fields).forEach(key => {
-    card[key] = fields[key];
-  });
-  writeDb(db);
-  res.json(card);
 });
 
-app.put('/api/cards/:cardId', (req, res) => {
-  const db = readDb();
-  const card = db.cards.find(c => c.id === req.params.cardId);
-  if (!card) return res.status(404).json({ error: "Card not found" });
-  
-  const set = db.sets.find(s => s.id === card.set_id);
-  if (set && set.user_id !== req.currentUser.id && req.currentUser.role !== 'admin') {
-    return res.status(403).json({ error: "Access denied" });
+app.patch('/api/cards/:cardId', async (req, res) => {
+  try {
+    const card = await Card.findOne({ id: req.params.cardId });
+    if (!card) return res.status(404).json({ error: "Card not found" });
+    
+    const set = await Set.findOne({ id: card.set_id });
+    if (set && set.user_id !== req.currentUser.id && req.currentUser.role !== 'admin') {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    
+    const fields = req.body;
+    Object.keys(fields).forEach(key => {
+      card[key] = fields[key];
+    });
+    await card.save();
+    res.json(card);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  
-  const fields = req.body;
-  Object.keys(fields).forEach(key => {
-    card[key] = fields[key];
-  });
-  writeDb(db);
-  res.json(card);
+});
+
+app.put('/api/cards/:cardId', async (req, res) => {
+  try {
+    const card = await Card.findOne({ id: req.params.cardId });
+    if (!card) return res.status(404).json({ error: "Card not found" });
+    
+    const set = await Set.findOne({ id: card.set_id });
+    if (set && set.user_id !== req.currentUser.id && req.currentUser.role !== 'admin') {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    
+    const fields = req.body;
+    Object.keys(fields).forEach(key => {
+      card[key] = fields[key];
+    });
+    await card.save();
+    res.json(card);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // 4. Study Log
-app.get('/api/study-log', (req, res) => {
-  const db = readDb();
-  res.json(db.study_log.filter(l => l.user_id === req.currentUser.id));
+app.get('/api/study-log', async (req, res) => {
+  try {
+    const logs = await StudyLog.find({ user_id: req.currentUser.id });
+    res.json(logs);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.post('/api/study-log', (req, res) => {
+app.post('/api/study-log', async (req, res) => {
   const entry = req.body;
-  const db = readDb();
   entry.id = "log_" + crypto.randomBytes(4).toString('hex');
   entry.user_id = req.currentUser.id;
-  db.study_log.push(entry);
-  
-  // Keep only last 5000 logs for the user to prevent bloat
-  const userLogs = db.study_log.filter(l => l.user_id === req.currentUser.id);
-  if (userLogs.length > 5000) {
-    const logsToKeep = userLogs.slice(userLogs.length - 5000);
-    db.study_log = db.study_log.filter(l => l.user_id !== req.currentUser.id).concat(logsToKeep);
+  try {
+    const logDoc = new StudyLog(entry);
+    await logDoc.save();
+    
+    // Keep only last 5000 logs for the user to prevent bloat
+    const count = await StudyLog.countDocuments({ user_id: req.currentUser.id });
+    if (count > 5000) {
+      const oldestLogs = await StudyLog.find({ user_id: req.currentUser.id })
+        .sort({ createdAt: 1 })
+        .limit(count - 5000);
+      const oldestIds = oldestLogs.map(l => l._id);
+      await StudyLog.deleteMany({ _id: { $in: oldestIds } });
+    }
+    res.status(201).json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  writeDb(db);
-  res.status(201).json({ success: true });
 });
 
 // 4.5 User Profile Update
-app.put('/api/user/profile', (req, res) => {
+app.put('/api/user/profile', async (req, res) => {
   const reqData = req.body;
-  const db = readDb();
-  const user = db.users.find(u => u.id === req.currentUser.id);
-  if (!user) return res.status(404).json({ error: "User not found" });
-  
-  // 1. Update username
-  if (reqData.username) {
-    const cleanUsername = reqData.username.trim().toLowerCase();
-    if (cleanUsername !== user.username) {
-      if (db.users.some(u => u.username.toLowerCase() === cleanUsername)) {
-        return res.status(400).json({ error: "Username already exists" });
+  try {
+    const user = await User.findOne({ id: req.currentUser.id });
+    if (!user) return res.status(404).json({ error: "User not found" });
+    
+    // 1. Update username
+    if (reqData.username) {
+      const cleanUsername = reqData.username.trim().toLowerCase();
+      if (cleanUsername !== user.username) {
+        const exists = await User.findOne({ username: cleanUsername });
+        if (exists) {
+          return res.status(400).json({ error: "Username already exists" });
+        }
+        user.username = cleanUsername;
       }
-      user.username = cleanUsername;
     }
+    // 2. Update avatarUrl
+    if (reqData.avatarUrl !== undefined) {
+      user.avatarUrl = reqData.avatarUrl;
+    }
+    // 3. Update password
+    if (reqData.newPassword) {
+      if (!reqData.currentPassword) {
+        return res.status(400).json({ error: "Current password is required to change password" });
+      }
+      const currentHash = getPasswordHash(reqData.currentPassword);
+      if (currentHash !== user.passwordHash) {
+        return res.status(400).json({ error: "Incorrect current password" });
+      }
+      user.passwordHash = getPasswordHash(reqData.newPassword);
+    }
+    await user.save();
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        avatarUrl: user.avatarUrl
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  // 2. Update avatarUrl
-  if (reqData.avatarUrl !== undefined) {
-    user.avatarUrl = reqData.avatarUrl;
-  }
-  // 3. Update password
-  if (reqData.newPassword) {
-    if (!reqData.currentPassword) {
-      return res.status(400).json({ error: "Current password is required to change password" });
-    }
-    const currentHash = getPasswordHash(reqData.currentPassword);
-    if (currentHash !== user.passwordHash) {
-      return res.status(400).json({ error: "Incorrect current password" });
-    }
-    user.passwordHash = getPasswordHash(reqData.newPassword);
-  }
-  writeDb(db);
-  res.json({
-    success: true,
-    user: {
-      id: user.id,
-      username: user.username,
-      role: user.role,
-      avatarUrl: user.avatarUrl
-    }
-  });
 });
 
 // 5. Settings
-app.get('/api/settings', (req, res) => {
-  const db = readDb();
-  const user = db.users.find(u => u.id === req.currentUser.id);
-  if (!user) return res.status(404).json({ error: "User not found" });
-  if (!user.settings) {
-    user.settings = { tts_enabled: true, tts_rate: 0.9, tts_voice: "en-US", auto_speak_on_flip: false, audio_feedback: true };
-    writeDb(db);
+app.get('/api/settings', async (req, res) => {
+  try {
+    const user = await User.findOne({ id: req.currentUser.id });
+    if (!user) return res.status(404).json({ error: "User not found" });
+    if (!user.settings) {
+      user.settings = { tts_enabled: true, tts_rate: 0.9, tts_voice: "en-US", auto_speak_on_flip: false, audio_feedback: true };
+      await user.save();
+    }
+    res.json(user.settings);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  res.json(user.settings);
 });
 
-app.put('/api/settings', (req, res) => {
+const handleSettingsUpdate = async (req, res) => {
   const newSettings = req.body;
-  const db = readDb();
-  const user = db.users.find(u => u.id === req.currentUser.id);
-  if (!user) return res.status(404).json({ error: "User not found" });
-  if (!user.settings) user.settings = {};
-  Object.keys(newSettings).forEach(key => {
-    user.settings[key] = newSettings[key];
-  });
-  writeDb(db);
-  res.json(user.settings);
-});
+  try {
+    const user = await User.findOne({ id: req.currentUser.id });
+    if (!user) return res.status(404).json({ error: "User not found" });
+    if (!user.settings) user.settings = {};
+    Object.keys(newSettings).forEach(key => {
+      user.settings[key] = newSettings[key];
+    });
+    user.markModified('settings');
+    await user.save();
+    res.json(user.settings);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
 
-app.post('/api/settings', (req, res) => {
-  const newSettings = req.body;
-  const db = readDb();
-  const user = db.users.find(u => u.id === req.currentUser.id);
-  if (!user) return res.status(404).json({ error: "User not found" });
-  if (!user.settings) user.settings = {};
-  Object.keys(newSettings).forEach(key => {
-    user.settings[key] = newSettings[key];
-  });
-  writeDb(db);
-  res.json(user.settings);
-});
+app.put('/api/settings', handleSettingsUpdate);
+app.post('/api/settings', handleSettingsUpdate);
 
 // 6. Backups
 app.get('/api/backups', (req, res) => {
@@ -645,66 +739,75 @@ app.get('/api/backups', (req, res) => {
   }
 });
 
-app.post('/api/backups', (req, res) => {
+app.post('/api/backups', async (req, res) => {
   try {
-    const backupName = makeBackup('backup');
+    const backupName = await makeBackup('backup');
     res.status(201).json({ success: true, filename: backupName });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/restore/:backupFileName', (req, res) => {
+app.post('/api/restore/:backupFileName', async (req, res) => {
   const backupFileName = req.params.backupFileName;
   const backupsDir = path.join(__dirname, 'backups');
   const backupPath = path.join(backupsDir, backupFileName);
   if (fs.existsSync(backupPath)) {
-    makeBackup('pre_restore');
-    fs.copyFileSync(backupPath, dbPath);
-    res.json({ success: true });
+    try {
+      await makeBackup('pre_restore');
+      const dataStr = fs.readFileSync(backupPath, 'utf8');
+      const dataObj = JSON.parse(dataStr);
+      await importObjToMongo(dataObj);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: "Restore failed: " + err.message });
+    }
   } else {
     res.status(404).json({ error: "Backup file not found" });
   }
 });
 
 // 7. Sync
-app.post('/api/sync', (req, res) => {
+app.post('/api/sync', async (req, res) => {
   try {
-    makeBackup('pre_sync');
+    await makeBackup('pre_sync');
     const syncData = req.body;
-    const db = readDb();
     
-    db.folders = db.folders.filter(f => f.user_id !== req.currentUser.id);
-    db.sets = db.sets.filter(s => s.user_id !== req.currentUser.id);
-    db.cards = db.cards.filter(c => c.user_id !== req.currentUser.id);
-    db.study_log = db.study_log.filter(l => l.user_id !== req.currentUser.id);
+    // Clear user's existing records
+    await Folder.deleteMany({ user_id: req.currentUser.id });
+    await Set.deleteMany({ user_id: req.currentUser.id });
+    await Card.deleteMany({ user_id: req.currentUser.id });
+    await StudyLog.deleteMany({ user_id: req.currentUser.id });
     
     if (Array.isArray(syncData.folders)) {
-      syncData.folders.forEach(f => {
+      const folders = syncData.folders.map(f => {
         f.user_id = req.currentUser.id;
-        db.folders.push(f);
+        return f;
       });
+      if (folders.length > 0) await Folder.insertMany(folders);
     }
     if (Array.isArray(syncData.sets)) {
-      syncData.sets.forEach(s => {
+      const sets = syncData.sets.map(s => {
         s.user_id = req.currentUser.id;
-        db.sets.push(s);
+        return s;
       });
+      if (sets.length > 0) await Set.insertMany(sets);
     }
     if (Array.isArray(syncData.cards)) {
-      syncData.cards.forEach(c => {
+      const cards = syncData.cards.map(c => {
         c.user_id = req.currentUser.id;
-        db.cards.push(c);
+        return c;
       });
+      if (cards.length > 0) await Card.insertMany(cards);
     }
     if (Array.isArray(syncData.study_log)) {
-      syncData.study_log.forEach(l => {
+      const study_log = syncData.study_log.map(l => {
         l.user_id = req.currentUser.id;
-        db.study_log.push(l);
+        return l;
       });
+      if (study_log.length > 0) await StudyLog.insertMany(study_log);
     }
     
-    writeDb(db);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: "Sync failed: " + err.message });
