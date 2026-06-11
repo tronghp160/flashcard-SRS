@@ -814,6 +814,78 @@ app.post('/api/sync', async (req, res) => {
   }
 });
 
+// 8. Image Suggestions API
+app.get('/api/suggest-images', async (req, res) => {
+  const { keyword, meaning, wordType } = req.query;
+  if (!keyword) {
+    return res.status(400).json({ error: "Keyword is required" });
+  }
+
+  const pixabayKey = process.env.PIXABAY_API_KEY;
+  const unsplashKey = process.env.UNSPLASH_API_KEY;
+
+  if (!pixabayKey && !unsplashKey) {
+    return res.json([]);
+  }
+
+  const searchQueries = [keyword.toLowerCase().trim()];
+  if (meaning) {
+    const cleanMeaning = meaning.toLowerCase().trim();
+    if (cleanMeaning !== searchQueries[0]) {
+      searchQueries.push(cleanMeaning);
+    }
+  }
+
+  const imageUrls = [];
+
+  try {
+    const apiTasks = [];
+
+    if (pixabayKey) {
+      searchQueries.forEach(query => {
+        const url = `https://pixabay.com/api/?key=${pixabayKey}&q=${encodeURIComponent(query)}&image_type=photo&per_page=15&safesearch=true`;
+        apiTasks.push(
+          fetch(url)
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+              if (data && Array.isArray(data.hits)) {
+                data.hits.forEach(hit => {
+                  if (hit.webformatURL) imageUrls.push(hit.webformatURL);
+                });
+              }
+            })
+            .catch(err => console.error("Pixabay query error:", err.message))
+        );
+      });
+    }
+
+    if (unsplashKey) {
+      searchQueries.forEach(query => {
+        const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=15&client_id=${unsplashKey}`;
+        apiTasks.push(
+          fetch(url)
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+              if (data && Array.isArray(data.results)) {
+                data.results.forEach(item => {
+                  if (item.urls?.small) imageUrls.push(item.urls.small);
+                });
+              }
+            })
+            .catch(err => console.error("Unsplash query error:", err.message))
+        );
+      });
+    }
+
+    await Promise.allSettled(apiTasks);
+
+    const uniqueUrls = [...new Set(imageUrls)].slice(0, 24);
+    res.json(uniqueUrls);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to suggest images: " + err.message });
+  }
+});
+
 // Static files serving
 app.use(express.static(__dirname));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

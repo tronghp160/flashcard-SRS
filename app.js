@@ -4076,6 +4076,41 @@ window.searchImagesForModal = async function(definitionContext, wordType) {
 
   resultsContainer.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Đang tải ảnh gợi ý...</div>';
 
+  const renderImages = (images) => {
+    resultsContainer.innerHTML = '';
+    if (!images || images.length === 0) {
+      resultsContainer.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:20px; opacity:0.5;">Không tìm thấy hình ảnh phù hợp.</div>';
+      return;
+    }
+    images.forEach((url, idx) => {
+      const item = document.createElement('div');
+      item.className = 'img-search-item';
+      item.style.opacity = '0';
+      item.style.transition = 'opacity 0.3s ease';
+      item.innerHTML = `<img src="${url}" alt="Gợi ý ${idx+1}" loading="lazy" onerror="this.src='https://placehold.co/150x110?text=Error+Loading'" onload="this.parentElement.style.opacity='1'">`;
+      requestAnimationFrame(() => { if (!item.style.opacity || item.style.opacity === '0') item.style.opacity = '1'; });
+      setTimeout(() => { item.style.opacity = '1'; }, 2000);
+      item.addEventListener('click', () => selectSuggestedImage(url));
+      resultsContainer.appendChild(item);
+    });
+  };
+
+  // === Attempt 1: Fetch premium suggestions from API Server (Pixabay/Unsplash) ===
+  try {
+    const backendUrl = `/api/suggest-images?keyword=${encodeURIComponent(keyword)}&meaning=${encodeURIComponent(definitionContext)}&wordType=${encodeURIComponent(wordType)}`;
+    const response = await fetch(backendUrl);
+    if (response.ok) {
+      const images = await response.json();
+      if (Array.isArray(images) && images.length > 0) {
+        renderImages(images);
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn("Lỗi khi kết nối suggest-images backend API, chuyển sang fallback:", err);
+  }
+
+  // === Attempt 2: Fallback to Client-side Search (Wikipedia & Wikimedia Commons optimized) ===
   try {
     const kwLower = keyword.toLowerCase();
 
@@ -4100,31 +4135,25 @@ window.searchImagesForModal = async function(definitionContext, wordType) {
       return junkPatterns.some(p => lower.includes(p));
     };
 
-    // === Helper: fetch Wikipedia main thumbnail via REST API ===
+    // Fetch Wikipedia main thumbnail
     const fetchWikiThumbnail = async (term) => {
       const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(term)}`);
       if (!res.ok) return [];
       const data = await res.json();
       const results = [];
       if (data.thumbnail?.source) {
-        // Get a larger version
         const thumbUrl = data.thumbnail.source.replace(/\/\d+px-/, '/500px-');
         results.push({ url: thumbUrl, source: 'wiki-thumb', title: data.title || term, searchTerm: term });
       }
       if (data.originalimage?.source && isImageFile(data.originalimage.source)) {
-        // Also add original but we'll prefer thumbnail for speed
-        const origUrl = data.originalimage.source;
-        const thumbFromOrig = origUrl.replace(/\/commons\//, '/commons/thumb/') + (origUrl.includes('/commons/thumb/') ? '' : '/500px-' + origUrl.split('/').pop());
-        if (thumbFromOrig !== origUrl) {
-          results.push({ url: data.thumbnail?.source || origUrl, source: 'wiki-thumb', title: data.title || term, searchTerm: term });
-        }
+        results.push({ url: data.thumbnail?.source || data.originalimage.source, source: 'wiki-thumb', title: data.title || term, searchTerm: term });
       }
       return results;
     };
 
-    // === Helper: fetch Wikimedia Commons images ===
+    // Fetch Wikimedia Commons images - OPTIMIZED: Removed filetype:bitmap & Increased limit to 30
     const fetchCommonsImages = async (term) => {
-      const res = await fetch(`https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(term)}+filetype:bitmap&gsrnamespace=6&prop=imageinfo&iiprop=url&iiurlwidth=400&format=json&origin=*&gsrlimit=12`);
+      const res = await fetch(`https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(term)}&gsrnamespace=6&prop=imageinfo&iiprop=url&iiurlwidth=400&format=json&origin=*&gsrlimit=30`);
       if (!res.ok) return [];
       const data = await res.json();
       const results = [];
@@ -4139,7 +4168,6 @@ window.searchImagesForModal = async function(definitionContext, wordType) {
       return results;
     };
 
-    // === PHASE 1: Translation + Commons for raw keyword (PARALLEL) ===
     let translationPromise = definitionContext
       ? fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=vi&tl=en&dt=t&q=${encodeURIComponent(definitionContext)}`)
           .then(r => r.ok ? r.json() : null)
@@ -4151,30 +4179,25 @@ window.searchImagesForModal = async function(definitionContext, wordType) {
 
     const [englishMeaning, commonsBaseResults] = await Promise.all([translationPromise, commonsBasePromise]);
 
-    // === PHASE 2: Generate smart visual queries and search ALL in parallel ===
     const visualQueries = generateVisualQueries(keyword, englishMeaning, wordType);
-    
-    // Build all parallel tasks
     const phase2Tasks = [];
     
-    // Wikipedia thumbnails for top queries
     const thumbTerms = [...new Set([
       englishMeaning || kwLower,
       ...getSmartSearchTerms(keyword)
     ])].slice(0, 3);
+    
     thumbTerms.forEach(term => {
       phase2Tasks.push(fetchWikiThumbnail(term).catch(() => []));
     });
 
-    // Commons search for each visual query
-    const commonsQueries = visualQueries.filter(q => q !== kwLower).slice(0, 3);
+    const commonsQueries = visualQueries.filter(q => q !== kwLower).slice(0, 4);
     commonsQueries.forEach(query => {
       phase2Tasks.push(fetchCommonsImages(query).catch(() => []));
     });
 
     const phase2Results = await Promise.allSettled(phase2Tasks);
 
-    // === Collect all images ===
     let allImages = [...commonsBaseResults];
     phase2Results.forEach(r => {
       if (r.status === 'fulfilled' && Array.isArray(r.value)) {
@@ -4182,7 +4205,6 @@ window.searchImagesForModal = async function(definitionContext, wordType) {
       }
     });
 
-    // === Deduplicate by URL ===
     const seen = new Set();
     allImages = allImages.filter(img => {
       if (seen.has(img.url)) return false;
@@ -4190,7 +4212,6 @@ window.searchImagesForModal = async function(definitionContext, wordType) {
       return true;
     });
 
-    // === Score and sort by relevance ===
     const searchTerms = getSmartSearchTerms(keyword);
     if (englishMeaning && englishMeaning !== kwLower) searchTerms.push(englishMeaning);
     const allTerms = [...new Set(searchTerms.filter(Boolean))];
@@ -4200,11 +4221,8 @@ window.searchImagesForModal = async function(definitionContext, wordType) {
       let score = 0;
       const titleLower = (img.title || '').toLowerCase();
       
-      // Wiki thumbnail is usually the most relevant image
       if (img.source === 'wiki-thumb') score += 8;
-      // Boost images from meaning-based search
       if (img.searchTerm && img.searchTerm.includes(primaryTerm) && primaryTerm !== kwLower) score += 5;
-      // Keyword/meaning appears in filename
       allTerms.forEach(term => {
         term.split(/\s+/).forEach(w => {
           if (w.length >= 3 && titleLower.includes(w)) score += 2;
@@ -4213,13 +4231,11 @@ window.searchImagesForModal = async function(definitionContext, wordType) {
       if (titleLower.includes(kwLower)) score += 3;
       if (englishMeaning && titleLower.includes(englishMeaning)) score += 4;
       
-      // Penalize clearly irrelevant content
       const penaltyTerms = ['duck', 'bird', 'fish', 'snake', 'frog', 'lizard', 'beetle', 'moth',
         'butterfly', 'worm', 'spider', 'station', 'railway', 'airport', 'building',
         'church', 'castle', 'monument', 'tower', 'bridge', 'hotel', 'inn', 'pub', 'town',
         'village', 'city', 'county', 'district', 'province', 'municipality'];
       
-      // Only penalize if the meaning clearly doesn't relate to these
       const meaningWords = (englishMeaning + ' ' + kwLower).toLowerCase();
       const isRelated = (term) => meaningWords.includes(term);
       
@@ -4231,53 +4247,29 @@ window.searchImagesForModal = async function(definitionContext, wordType) {
     });
     allImages.sort((a, b) => b.score - a.score);
 
-    let images = allImages.slice(0, 12).map(img => img.url);
+    let images = allImages.slice(0, 16).map(img => img.url);
 
-    // Pad with LoremFlickr if not enough
-    if (images.length < 9) {
+    if (images.length < 12) {
       const fallbackTerms = englishMeaning && englishMeaning !== kwLower 
         ? [englishMeaning, kwLower] 
         : [kwLower];
-      const needed = 9 - images.length;
+      const needed = 12 - images.length;
       for (let i = 1; i <= needed; i++) {
         const term = fallbackTerms[i % fallbackTerms.length];
         images.push(`https://loremflickr.com/400/300/${encodeURIComponent(term)}?random=${i}`);
       }
     }
-    images = images.slice(0, 12);
+    images = images.slice(0, 16);
+    renderImages(images);
 
-    // Render results with lazy loading + fade-in
-    resultsContainer.innerHTML = '';
-    if (images.length === 0) {
-      resultsContainer.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:20px; opacity:0.5;">Không tìm thấy hình ảnh phù hợp.</div>';
-      return;
-    }
-    images.forEach((url, idx) => {
-      const item = document.createElement('div');
-      item.className = 'img-search-item';
-      item.style.opacity = '0';
-      item.style.transition = 'opacity 0.3s ease';
-      item.innerHTML = `<img src="${url}" alt="Gợi ý ${idx+1}" loading="lazy" onerror="this.src='https://placehold.co/150x110?text=Error+Loading'" onload="this.parentElement.style.opacity='1'">`;
-      // Show immediately if image is cached
-      requestAnimationFrame(() => { if (!item.style.opacity || item.style.opacity === '0') item.style.opacity = '1'; });
-      setTimeout(() => { item.style.opacity = '1'; }, 2000); // Force show after 2s max
-      item.addEventListener('click', () => selectSuggestedImage(url));
-      resultsContainer.appendChild(item);
-    });
   } catch (err) {
-    console.error("Lỗi khi tải ảnh gợi ý:", err);
+    console.error("Lỗi khi tải ảnh gợi ý (local fallback):", err);
     resultsContainer.innerHTML = '';
     const images = [];
     for (let i = 1; i <= 12; i++) {
       images.push(`https://loremflickr.com/400/300/${encodeURIComponent(keyword.toLowerCase())}?random=${i}`);
     }
-    images.forEach((url, idx) => {
-      const item = document.createElement('div');
-      item.className = 'img-search-item';
-      item.innerHTML = `<img src="${url}" alt="Gợi ý ${idx+1}" loading="lazy" onerror="this.src='https://placehold.co/150x110?text=Error+Loading'">`;
-      item.addEventListener('click', () => selectSuggestedImage(url));
-      resultsContainer.appendChild(item);
-    });
+    renderImages(images);
   }
 };
 
